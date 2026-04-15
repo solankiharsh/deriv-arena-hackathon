@@ -356,13 +356,13 @@ export default function PlayPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
             <GameTimer
               endsAt={instance.ends_at}
               status={instance.status}
               onTimeUp={handleTimeUp}
             />
-            <span className="flex items-center gap-1 text-xs text-text-muted">
+            <span className="hidden sm:flex items-center gap-1 text-xs text-text-muted">
               <Users className="w-3.5 h-3.5" />
               {instance.player_count}
             </span>
@@ -456,8 +456,8 @@ export default function PlayPage() {
         {(isLive || isFinished) && (
           <div className="space-y-4">
             {/* Philosophy banner */}
-            <div className="w-full bg-[#0a0e17] border-t border-b border-white/[0.06] py-4 px-6 text-center">
-              <p className="text-sm md:text-base text-white/60 font-serif italic tracking-wide">
+            <div className="w-full bg-[#0a0e17] border-t border-b border-white/[0.06] py-3 sm:py-4 px-4 sm:px-6 text-center">
+              <p className="text-xs sm:text-sm md:text-base text-white/60 font-serif italic tracking-wide leading-relaxed">
                 &ldquo;Most traders don&apos;t lose because of bad strategy.{' '}
                 <span className="text-white/90 font-semibold not-italic">They lose because of bad behavior.</span>&rdquo;
               </p>

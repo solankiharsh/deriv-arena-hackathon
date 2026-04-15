@@ -621,7 +621,7 @@ export default function BoxingRingRenderer({
         </div>
       )}
 
-      <div className="mt-2 flex items-center gap-2 flex-wrap px-1">
+      <div className="mt-2 flex items-center gap-1.5 sm:gap-2 flex-wrap px-1">
         {[
           { icon: Swords, label: 'Trades', value: `${sessionWins}/${sessionTrades}`, color: undefined },
           { icon: Activity, label: 'P&L', value: formatCurrency(sessionPnl), color: sessionPnl >= 0 ? '#10b981' : '#ef4444' },
@@ -634,12 +634,12 @@ export default function BoxingRingRenderer({
         ].map((stat, i) => (
           <div
             key={i}
-            className="flex items-center gap-1.5 glass rounded-lg px-2.5 py-1.5"
+            className="flex items-center gap-1.5 glass rounded-lg px-2 py-1.5"
           >
             <stat.icon className="w-3 h-3 text-text-muted flex-shrink-0" />
-            <span className="text-[9px] text-text-muted uppercase">{stat.label}</span>
+            <span className="text-[8px] sm:text-[9px] text-text-muted uppercase">{stat.label}</span>
             <span
-              className="text-xs font-mono font-bold tabular-nums"
+              className="text-[11px] sm:text-xs font-mono font-bold tabular-nums"
               style={{ color: stat.color ?? 'var(--color-text-primary, #e2e8f0)' }}
             >
               {stat.value}

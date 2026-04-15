@@ -23,9 +23,9 @@ import { HeroCustomizePopup } from "./HeroCustomizePopup";
 
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center justify-between gap-2 text-xs leading-tight">
-      <span className="text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{label}</span>
-      <span className="font-bold tabular-nums" style={{ color: color ?? "var(--color-text)" }}>{value}</span>
+    <div className="flex items-center justify-between gap-2 text-[10px] sm:text-xs leading-tight">
+      <span className="text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap truncate">{label}</span>
+      <span className="font-bold tabular-nums text-right shrink-0" style={{ color: color ?? "var(--color-text)" }}>{value}</span>
     </div>
   );
 }
@@ -185,7 +185,7 @@ export function BoxingRing() {
           arenaScreenShakeEnabled && isShaking && "screen-shake"
         )}
         style={{
-          height: "clamp(200px, 28vh, 320px)",
+          height: "clamp(240px, 34vh, 340px)",
           borderTop: "1px solid var(--color-border)",
           borderTopColor: tiltScore > 60 ? `${tiltColor}40` : undefined,
           transition: "border-color 3s ease",
@@ -240,10 +240,13 @@ export function BoxingRing() {
         <div className="relative z-10 flex h-full">
 
           {/* LEFT: YOU panel */}
-          <div className="flex-shrink-0 flex flex-col justify-between px-3 py-2 h-full" style={{ width: 180 }}>
+          <div
+            className="flex-shrink-0 flex flex-col justify-between px-2 sm:px-3 py-2 h-full"
+            style={{ width: "clamp(92px, 22vw, 180px)" }}
+          >
             <div className="flex items-center gap-2">
               <div
-                className="w-9 h-9 rounded-md flex items-center justify-center text-[9px] font-black flex-shrink-0"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-md flex items-center justify-center text-[8px] sm:text-[9px] font-black flex-shrink-0"
                 style={{
                   background: `linear-gradient(135deg, ${mainColor}, ${mainColor}BB)`,
                   color: "#000",
@@ -255,7 +258,7 @@ export function BoxingRing() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 mb-1">
                   <span
-                    className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded"
+                    className="text-[7px] sm:text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded truncate"
                     style={{ color: rankInfo.color, background: `${rankInfo.color}18` }}
                   >
                     {formatRank(rankInfo)}
@@ -265,7 +268,7 @@ export function BoxingRing() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <StatRow
                 label="Session P&L"
                 value={formatCurrency(sessionPnl)}
@@ -290,13 +293,13 @@ export function BoxingRing() {
           </div>
 
           {/* CENTER: Ring with fighters — vertically centered */}
-          <div className="flex-1 relative flex flex-col items-center justify-center min-w-0 overflow-visible gap-1">
+          <div className="flex-1 relative flex flex-col items-center justify-center min-w-0 overflow-visible gap-1 px-1 sm:px-0">
             {/* Round + record */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-              <span className="text-[11px] font-mono tracking-wider uppercase" style={{ color: mainColor }}>
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-20">
+              <span className="text-[10px] sm:text-[11px] font-mono tracking-wider uppercase" style={{ color: mainColor }}>
                 R{round}
               </span>
-              <span className="text-[9px] text-[var(--color-text-muted)] font-mono tabular-nums opacity-70">
+              <span className="text-[8px] sm:text-[9px] text-[var(--color-text-muted)] font-mono tabular-nums opacity-70 whitespace-nowrap">
                 {sessionRecord.wins}W-{sessionRecord.losses}L-{sessionRecord.draws}D
               </span>
             </div>
@@ -309,7 +312,7 @@ export function BoxingRing() {
                   exit={{ scale: 0, opacity: 0 }}
                   className="absolute left-1/2 -translate-x-1/2 top-5 z-20 pointer-events-none"
                 >
-                  <span className="text-[13px] font-black tracking-wider" style={{ color: mainColor }}>
+                  <span className="text-[11px] sm:text-[13px] font-black tracking-wider whitespace-nowrap" style={{ color: mainColor }}>
                     COMBO x{comboCount}
                   </span>
                 </motion.div>
@@ -317,12 +320,18 @@ export function BoxingRing() {
             </AnimatePresence>
 
             {/* Fighter names — absolutely inside the ring near the floor */}
-            <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-12 z-10 pointer-events-none">
-              <span className="text-sm font-black uppercase tracking-widest" style={{ color: mainColor, textShadow: `0 0 12px ${mainColor}60` }}>
+            <div className="absolute bottom-2 sm:bottom-4 left-2 right-2 sm:left-0 sm:right-0 flex items-end justify-between sm:justify-center gap-2 sm:gap-12 z-10 pointer-events-none">
+              <span
+                className="max-w-[42%] sm:max-w-none text-[10px] sm:text-sm leading-tight font-black uppercase tracking-[0.18em] sm:tracking-widest break-words text-left"
+                style={{ color: mainColor, textShadow: `0 0 12px ${mainColor}60` }}
+              >
                 {isSprite ? spriteChar.name : hero.name}
               </span>
-              <span className="text-[10px] font-bold text-white/30 uppercase">VS</span>
-              <span className="text-sm font-black uppercase tracking-widest" style={{ color: villainColor, textShadow: `0 0 12px ${villainColor}60` }}>
+              <span className="text-[8px] sm:text-[10px] font-bold text-white/30 uppercase shrink-0 self-center">VS</span>
+              <span
+                className="max-w-[42%] sm:max-w-none text-[10px] sm:text-sm leading-tight font-black uppercase tracking-[0.18em] sm:tracking-widest break-words text-right"
+                style={{ color: villainColor, textShadow: `0 0 12px ${villainColor}60` }}
+              >
                 {isSprite ? `Anti-${spriteChar.name}` : hero.villainName}
               </span>
             </div>
@@ -330,7 +339,7 @@ export function BoxingRing() {
             {/* Fighters row */}
             <div className="flex items-center justify-center overflow-visible">
               {/* YOUR FIGHTER */}
-              <div className="relative" style={{ marginRight: 12 }}>
+              <div className="relative" style={{ marginRight: 6 }}>
                 {isSprite ? (
                   <SpriteAnimator
                     character={spriteChar}
@@ -385,7 +394,7 @@ export function BoxingRing() {
               </AnimatePresence>
 
               {/* VILLAIN FIGHTER */}
-              <div className="relative" style={{ marginLeft: 12 }}>
+              <div className="relative" style={{ marginLeft: 6 }}>
                 {isSprite ? (
                   <SpriteAnimator
                     character={spriteChar}
@@ -414,13 +423,16 @@ export function BoxingRing() {
           </div>
 
           {/* RIGHT: ANTI-YOU panel */}
-          <div className="flex-shrink-0 flex flex-col justify-between px-3 py-2 h-full" style={{ width: 180 }}>
+          <div
+            className="flex-shrink-0 flex flex-col justify-between px-2 sm:px-3 py-2 h-full"
+            style={{ width: "clamp(92px, 22vw, 180px)" }}
+          >
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1 text-right">
                 <HealthBar health={antiYouHealth} side="right" color={villainColor} />
               </div>
               <div
-                className="w-9 h-9 rounded-md flex items-center justify-center text-[9px] font-black flex-shrink-0"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-md flex items-center justify-center text-[8px] sm:text-[9px] font-black flex-shrink-0"
                 style={{
                   background: "transparent",
                   color: "#fff",
@@ -431,7 +443,7 @@ export function BoxingRing() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               <StatRow
                 label="Shadow P&L"
                 value={formatCurrency(antiYouSessionPnl + liveShadowPnl)}
@@ -463,7 +475,7 @@ export function BoxingRing() {
                 color={sessionPnl >= antiYouSessionPnl + liveShadowPnl ? "var(--color-success)" : "var(--color-danger)"}
               />
               {topPattern && (
-                <div className="text-[8px] leading-tight truncate opacity-80" style={{ color: villainColor }} title={topPattern}>
+                <div className="text-[8px] leading-tight truncate opacity-80 text-right" style={{ color: villainColor }} title={topPattern}>
                   {topPattern}
                 </div>
               )}
