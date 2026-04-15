@@ -160,6 +160,25 @@ export const arenaApi = {
   },
 
   partner: {
+    referralJourney: () =>
+      apiFetch<{
+        sources: Array<{
+          source: string;
+          clicks: number;
+          signups: number;
+          redirects: number;
+          registrations: number;
+          first_trades: number;
+        }>;
+        recent_journeys: Array<{
+          user_id: string;
+          display_name: string;
+          source: string;
+          clicked_at: string;
+          last_event: string;
+          events_count: number;
+        }>;
+      }>('/api/partner/referral-journey'),
     stats: () =>
       apiFetch<{
         summary: {

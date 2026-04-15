@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import {
   Play, Users, Copy, Check, Share2, ArrowLeft, Loader2,
   TrendingUp, TrendingDown, BarChart3, Trophy, Wifi, WifiOff,
+  Volume2, VolumeX,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -27,6 +28,8 @@ import {
   interpolateMessage,
   type ConversionThreshold,
 } from '@/lib/conversion-thresholds';
+import { sfx } from '@/lib/sounds';
+import { useSettingsStore } from '@/lib/stores/settings-store';
 import ClassicArenaRenderer from '@/components/game/renderers/ClassicArenaRenderer';
 import BoxingRingRenderer from '@/components/game/renderers/BoxingRingRenderer';
 import AntiYouRenderer from '@/components/game/renderers/AntiYouRenderer';
@@ -121,6 +124,9 @@ export default function PlayPage() {
   const [showNudge, setShowNudge] = useState(false);
   const highestThresholdShown = useRef(0);
   const endGameNudgeShown = useRef(false);
+  const prevStatusRef = useRef<string | undefined>(undefined);
+  const soundEnabled = useSettingsStore((s) => s.arenaSoundEnabled);
+  const setSoundEnabled = useSettingsStore((s) => s.setArenaSoundEnabled);
 
   // Score tracking
   const [totalPnl, setTotalPnl] = useState(0);
@@ -169,6 +175,19 @@ export default function PlayPage() {
     };
     autoJoin();
   }, [user, instance, joined, instanceId, loadInstance]);
+
+  useEffect(() => {
+    const cur = instance?.status;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = cur;
+
+    if (cur === 'live' && prev && prev !== 'live') {
+      sfx.play('game_start');
+    }
+    if (cur === 'finished' && prev && prev !== 'finished') {
+      sfx.play('game_end');
+    }
+  }, [instance?.status]);
 
   useEffect(() => {
     if (instance?.status === 'live' && !instructionsDismissed) {
@@ -318,6 +337,15 @@ export default function PlayPage() {
               <Users className="w-3.5 h-3.5" />
               {instance.player_count}
             </span>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="btn-ghost text-xs p-1.5"
+              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            >
+              {soundEnabled
+                ? <Volume2 className="w-3.5 h-3.5 text-accent-primary" />
+                : <VolumeX className="w-3.5 h-3.5 text-text-muted" />}
+            </button>
             <button
               onClick={handleCopyLink}
               className="btn-ghost text-xs gap-1"

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { sfx } from "@/lib/sounds";
 import {
   BarChart3,
   Clock,
@@ -215,6 +216,7 @@ export default function ClassicArenaRenderer(props: Props) {
 
   useEffect(() => {
     if (sessionTrades > prevSessionTradesRef.current) {
+      sfx.play(winStreak > 0 ? 'trade_win' : 'trade_loss');
       addCredits(1);
 
       if (chaosActiveRef.current) {
@@ -258,6 +260,7 @@ export default function ClassicArenaRenderer(props: Props) {
     setChaosHeadline(headline);
     setChaosActive(true);
     chaosActiveRef.current = true;
+    sfx.play('chaos_alert');
 
     setTimeout(() => {
       setChaosHeadline(null);
@@ -292,6 +295,7 @@ export default function ClassicArenaRenderer(props: Props) {
     (type: PowerUpType) => {
       const ok = activatePowerUp(type);
       if (!ok) return;
+      sfx.play('powerup');
       setPowerUpsUsed((c) => c + 1);
       setActivatedButton(type);
       setTimeout(() => setActivatedButton(null), 500);
@@ -301,6 +305,7 @@ export default function ClassicArenaRenderer(props: Props) {
 
   const handleBuy = useCallback(async () => {
     if (!isLive || isPlacing || hasActiveSimulation()) return;
+    sfx.play('trade_place');
     setIsPlacing(true);
     try {
       await placeSimulatedTrade({

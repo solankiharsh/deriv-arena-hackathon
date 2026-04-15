@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Users, Gamepad2, TrendingUp,
-  ArrowUpRight, Target, Loader2, ChevronRight, Shield, Share2,
+  ArrowUpRight, Target, Loader2, ChevronRight, Shield, Share2, GitBranch,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
 import { GAME_MODE_LABELS, type GameMode } from '@/lib/arena-types';
 import GradientText from '@/components/reactbits/GradientText';
+import ReferralJourneyTimeline from '@/components/partner/ReferralJourneyTimeline';
+
+type JourneyData = Awaited<ReturnType<typeof arenaApi.partner.referralJourney>>;
 
 function StatCard({ label, value, icon: Icon, color = 'text-accent-primary', delay = 0 }: {
   label: string;
@@ -66,6 +69,7 @@ export default function PartnerDashboard() {
   const router = useRouter();
   const { user, isLoading: authLoading, fetchUser } = useArenaAuth();
   const [data, setData] = useState<PartnerData | null>(null);
+  const [journeyData, setJourneyData] = useState<JourneyData | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +79,12 @@ export default function PartnerDashboard() {
     setDataLoading(true);
     setError(null);
     try {
-      const result = await arenaApi.partner.stats();
+      const [result, journey] = await Promise.all([
+        arenaApi.partner.stats(),
+        arenaApi.partner.referralJourney().catch(() => null),
+      ]);
       setData(result);
+      setJourneyData(journey);
     } catch (err) {
       console.error('Partner stats load failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to load partner data');
@@ -219,6 +227,24 @@ export default function PartnerDashboard() {
           </motion.div>
         )}
 
+        {/* Referral Journey Timeline */}
+        {journeyData && journeyData.sources.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.23 }}
+            className="bg-card border border-border rounded-card p-6 mb-8"
+          >
+            <h2 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary mb-4 flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-accent-primary" /> Referral Journey
+            </h2>
+            <ReferralJourneyTimeline
+              sources={journeyData.sources}
+              recentJourneys={journeyData.recent_journeys}
+            />
+          </motion.div>
+        )}
+
         {/* Daily Conversions Chart */}
         {data && data.daily_conversions.length > 0 && (
           <motion.div
@@ -231,10 +257,17 @@ export default function PartnerDashboard() {
               Daily Conversions (Last 30 Days)
             </h2>
             <div className="flex items-end gap-1 h-24 sm:h-32">
-              {data.daily_conversions.map((d) => {
+              {data.daily_conversions.map((d, i) => {
                 const height = Math.max(4, (d.count / dailyMax) * 100);
                 return (
-                  <div key={d.day} className="flex-1 flex flex-col items-center justify-end group relative">
+                  <motion.div
+                    key={d.day}
+                    initial={{ scaleY: 0 }}
+                    animate={{ scaleY: 1 }}
+                    transition={{ delay: 0.3 + i * 0.02, duration: 0.3 }}
+                    style={{ transformOrigin: 'bottom' }}
+                    className="flex-1 flex flex-col items-center justify-end group relative"
+                  >
                     <div className="absolute -top-6 hidden group-hover:block bg-bg-elevated border border-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-10">
                       {d.day}: {d.count}
                     </div>
@@ -242,7 +275,7 @@ export default function PartnerDashboard() {
                       className="w-full bg-purple-500/30 border border-purple-500/40 rounded-t transition-all group-hover:bg-purple-500/50"
                       style={{ height: `${height}%` }}
                     />
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -281,10 +314,11 @@ export default function PartnerDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.template_performance.map((tp) => {
+                  {data.template_performance.map((tp, tpIdx) => {
                     const rate = tp.player_count > 0 ? ((tp.conversions / tp.player_count) * 100).toFixed(1) : '0.0';
+                    const isBest = tpIdx === 0 && tp.conversions > 0;
                     return (
-                      <tr key={tp.template_id} className="border-b border-border/50">
+                      <tr key={tp.template_id} className={`border-b border-border/50 ${isBest ? 'bg-accent-primary/[0.03]' : ''}`}>
                         <td className="py-3 pr-4 font-medium text-text-primary">{tp.template_name}</td>
                         <td className="py-3 pr-4">
                           <span className="text-[10px] font-mono px-2 py-0.5 border border-border rounded-pill text-text-muted">

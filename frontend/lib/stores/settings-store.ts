@@ -38,7 +38,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       arenaAnimationsEnabled: true,
       arenaScreenShakeEnabled: true,
-      arenaSoundEnabled: false,
+      arenaSoundEnabled: true,
       arenaSize: "compact",
       avatarStyle: "professional",
       warRoomConsensusThreshold: 60,
@@ -59,6 +59,15 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoLockoutAt: (autoLockoutAt) => set({ autoLockoutAt }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
     }),
-    { name: "phantom-ledger-settings" }
+    {
+      name: "phantom-ledger-settings",
+      version: 1,
+      migrate: (persisted: Record<string, unknown>, version: number) => {
+        if (version === 0) {
+          return { ...persisted, arenaSoundEnabled: true };
+        }
+        return persisted;
+      },
+    }
   )
 );

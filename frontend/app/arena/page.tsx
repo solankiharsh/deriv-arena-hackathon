@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2, Trophy, Users, Clock, ArrowRight, Loader2,
   Swords, BarChart3, Zap, Plus, Activity,
+  Crosshair, TrendingUp, Map, MessageSquare,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
@@ -24,10 +25,27 @@ const RisingLines = dynamic(
   { ssr: false },
 );
 
+const CommandCenterTab = dynamic(() => import('@/components/arena/tabs/CommandCenterTab'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
+});
+const PredictionsTab = dynamic(() => import('@/components/arena/tabs/PredictionsTab'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
+});
+const MapTab = dynamic(() => import('@/components/arena/tabs/MapTab'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
+});
+const DiscussionsTab = dynamic(() => import('@/components/arena/tabs/DiscussionsTab'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
+});
+
 const GOLD = '#E8B45E';
 const BG = '#07090F';
 
-type ArenaTab = 'games' | 'live' | 'leaderboard';
+type ArenaTab = 'games' | 'live' | 'leaderboard' | 'command_center' | 'predictions' | 'map' | 'discussions';
 
 function LiveInstanceCard({ instance }: { instance: GameInstance & { template_name?: string; game_mode?: string } }) {
   const router = useRouter();
@@ -273,10 +291,14 @@ export default function ArenaPage() {
   const { user } = useArenaAuth();
   const isMobile = useIsMobile();
 
-  const tabs: { value: ArenaTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { value: 'games', label: 'Games', icon: Gamepad2 },
-    { value: 'live', label: 'Live', icon: Activity },
-    { value: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+  const tabs: { value: ArenaTab; label: string; icon: React.ComponentType<{ className?: string }>; group: 'compete' | 'intel' }[] = [
+    { value: 'games', label: 'Games', icon: Gamepad2, group: 'compete' },
+    { value: 'live', label: 'Live', icon: Activity, group: 'compete' },
+    { value: 'leaderboard', label: 'Leaderboard', icon: Trophy, group: 'compete' },
+    { value: 'command_center', label: 'Command', icon: Crosshair, group: 'intel' },
+    { value: 'predictions', label: 'Predictions', icon: TrendingUp, group: 'intel' },
+    { value: 'map', label: 'Map', icon: Map, group: 'intel' },
+    { value: 'discussions', label: 'Discuss', icon: MessageSquare, group: 'intel' },
   ];
 
   return (
@@ -315,21 +337,26 @@ export default function ArenaPage() {
             </h1>
 
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              {tabs.map((t) => {
+              {tabs.map((t, i) => {
                 const Icon = t.icon;
+                const showSep = i > 0 && tabs[i - 1].group !== t.group;
                 return (
-                  <button
-                    key={t.value}
-                    onClick={() => setTab(t.value)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap"
-                    style={tab === t.value
-                      ? { color: GOLD, background: 'rgba(232,180,94,0.08)', border: '1px solid rgba(232,180,94,0.2)' }
-                      : { color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.07)' }
-                    }
-                  >
-                    <Icon className="w-3 h-3" />
-                    {t.label}
-                  </button>
+                  <React.Fragment key={t.value}>
+                    {showSep && (
+                      <div className="w-px h-5 bg-white/10 mx-1 shrink-0" />
+                    )}
+                    <button
+                      onClick={() => setTab(t.value)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap"
+                      style={tab === t.value
+                        ? { color: GOLD, background: 'rgba(232,180,94,0.08)', border: '1px solid rgba(232,180,94,0.2)' }
+                        : { color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.07)' }
+                      }
+                    >
+                      <Icon className="w-3 h-3" />
+                      {t.label}
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -366,6 +393,26 @@ export default function ArenaPage() {
                 <div className="max-w-2xl">
                   <GlobalLeaderboard />
                 </div>
+              </motion.div>
+            )}
+            {tab === 'command_center' && (
+              <motion.div key="command_center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <CommandCenterTab />
+              </motion.div>
+            )}
+            {tab === 'predictions' && (
+              <motion.div key="predictions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <PredictionsTab />
+              </motion.div>
+            )}
+            {tab === 'map' && (
+              <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <MapTab />
+              </motion.div>
+            )}
+            {tab === 'discussions' && (
+              <motion.div key="discussions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <DiscussionsTab />
               </motion.div>
             )}
           </AnimatePresence>

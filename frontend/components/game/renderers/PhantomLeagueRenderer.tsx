@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sfx } from '@/lib/sounds';
 import {
   Ghost,
   TrendingUp,
@@ -393,6 +394,7 @@ export default function PhantomLeagueRenderer(props: Props) {
   }, [isLive, spawnOrb]);
 
   const captureOrb = useCallback((orbId: string) => {
+    sfx.play('orb_capture');
     setOrbs((prev) =>
       prev.map((o) => {
         if (o.id !== orbId || o.captured || o.dissolving) return o;
@@ -409,6 +411,7 @@ export default function PhantomLeagueRenderer(props: Props) {
 
   const handlePlaceTrade = async () => {
     if (!isLive || isPlacingTrade || hasActiveSimulation()) return;
+    sfx.play('trade_place');
     setIsPlacingTrade(true);
     setTradeError(null);
 

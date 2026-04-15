@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sfx } from '@/lib/sounds';
 import {
   TrendingUp,
   TrendingDown,
@@ -345,6 +346,7 @@ export default function AntiYouRenderer(props: Props) {
 
   const handlePlaceTrade = async () => {
     if (!isLive || isPlacingTrade || hasActiveSimulation()) return;
+    sfx.play('trade_place');
     setIsPlacingTrade(true);
     setTradeError(null);
 
@@ -470,6 +472,7 @@ export default function AntiYouRenderer(props: Props) {
       return;
     }
     if (prevEvolutionRef.current !== evolution) {
+      sfx.play('stage_shift');
       setStageFlash(evolution);
       const t = setTimeout(() => setStageFlash(null), 2400);
       prevEvolutionRef.current = evolution;

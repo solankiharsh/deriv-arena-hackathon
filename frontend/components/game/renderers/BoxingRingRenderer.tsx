@@ -18,6 +18,7 @@ import { useSessionStore } from '@/lib/stores/session-store';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { TILT_ZONE_COLORS } from '@/lib/engines/tilt-detection';
 import { fireArenaEvent } from '@/lib/engines/arena-events';
+import { sfx } from '@/lib/sounds';
 import {
   placeSimulatedTrade,
   sellSimulatedTradeEarly,
@@ -178,12 +179,14 @@ export default function BoxingRingRenderer({
     if (progress >= 100 && !knockedOut) {
       setKnockedOut(true);
       setShowKOCelebration(true);
+      sfx.play('knockout');
       fireArenaEvent('KNOCKOUT_FINISHER', sessionId);
     }
   }, [knockoutProgress, knockedOut, setKnockoutProgress, sessionId]);
 
   useEffect(() => {
     if (sessionTrades > prevTradesRef.current && isLive) {
+      sfx.play(winStreak > 0 ? 'trade_win' : 'trade_loss');
       prevTradesRef.current = sessionTrades;
 
       const healthDiff = yourHealth - antiYouHealth;
@@ -207,6 +210,7 @@ export default function BoxingRingRenderer({
 
   const handlePlaceTrade = async () => {
     if (!isLive || isPlacingTrade || hasActiveSimulation() || knockedOut) return;
+    sfx.play('trade_place');
     setIsPlacingTrade(true);
     setTradeError(null);
 

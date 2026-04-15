@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Timer } from 'lucide-react';
+import { sfx } from '@/lib/sounds';
 
 interface GameTimerProps {
   endsAt: string | null;
@@ -11,6 +12,7 @@ interface GameTimerProps {
 
 export default function GameTimer({ endsAt, status, onTimeUp }: GameTimerProps) {
   const [remaining, setRemaining] = useState<number>(0);
+  const warnedRef = useRef(false);
 
   useEffect(() => {
     if (!endsAt || status !== 'live') return;
@@ -25,6 +27,15 @@ export default function GameTimer({ endsAt, status, onTimeUp }: GameTimerProps) 
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [endsAt, status, onTimeUp]);
+
+  const isUrgent = status === 'live' && remaining < 60_000;
+
+  useEffect(() => {
+    if (isUrgent && remaining > 0 && !warnedRef.current) {
+      warnedRef.current = true;
+      sfx.play('timer_warning');
+    }
+  }, [isUrgent, remaining]);
 
   if (status === 'waiting') {
     return (
@@ -47,7 +58,6 @@ export default function GameTimer({ endsAt, status, onTimeUp }: GameTimerProps) 
   const totalSeconds = Math.floor(remaining / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  const isUrgent = remaining < 60_000;
 
   return (
     <div className={`flex items-center gap-2 ${isUrgent ? 'text-error' : 'text-success'}`}>

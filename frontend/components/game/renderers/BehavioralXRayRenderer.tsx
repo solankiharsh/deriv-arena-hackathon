@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sfx } from '@/lib/sounds';
 import {
   TrendingUp,
   TrendingDown,
@@ -540,6 +541,7 @@ export default function BehavioralXRayRenderer(props: Props) {
 
   const handlePlaceTrade = async () => {
     if (!isLive || isPlacingTrade || hasActiveSimulation()) return;
+    sfx.play('trade_place');
     setIsPlacingTrade(true);
     setTradeError(null);
 
