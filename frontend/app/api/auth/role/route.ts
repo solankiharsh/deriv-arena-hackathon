@@ -8,6 +8,7 @@ const VALID_ROLES: UserRole[] = ['player', 'partner'];
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) {
+    console.warn('[auth/role] No session found');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -15,27 +16,36 @@ export async function POST(req: NextRequest) {
   const role = body.role as UserRole;
 
   if (!VALID_ROLES.includes(role)) {
+    console.warn(`[auth/role] Invalid role requested: ${role}, user=${session.uid}`);
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
   }
 
-  await execute(
-    'UPDATE arena_users SET role = $1, updated_at = now() WHERE id = $2',
-    [role, session.uid],
-  );
+  console.log(`[auth/role] Updating role: user=${session.uid}, oldRole=${session.role}, newRole=${role}`);
 
-  const user = await queryOne<ArenaUser>(
-    'SELECT * FROM arena_users WHERE id = $1',
-    [session.uid],
-  );
+  try {
+    await execute(
+      'UPDATE arena_users SET role = $1, updated_at = now() WHERE id = $2',
+      [role, session.uid],
+    );
 
-  if (user) {
-    await createSession({
-      uid: user.id,
-      did: user.deriv_account_id,
-      role: user.role,
-      name: user.display_name,
-    });
+    const user = await queryOne<ArenaUser>(
+      'SELECT * FROM arena_users WHERE id = $1',
+      [session.uid],
+    );
+
+    if (user) {
+      await createSession({
+        uid: user.id,
+        did: user.deriv_account_id,
+        role: user.role,
+        name: user.display_name,
+      });
+      console.log(`[auth/role] Success: user=${user.id}, role=${user.role}`);
+    }
+
+    return NextResponse.json({ success: true, user });
+  } catch (err) {
+    console.error(`[auth/role] Failed to update role for user=${session.uid}:`, err);
+    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, user });
 }

@@ -84,6 +84,25 @@ export async function GET() {
         END
     `, [partnerId]);
 
+    const referralBySource = await query<{ source: string; count: string }>(`
+      SELECT source, COUNT(*) as count
+      FROM partner_referral_clicks
+      WHERE partner_id = $1
+      GROUP BY source
+      ORDER BY count DESC
+    `, [partnerId]).catch(() => []);
+
+    const referralSummary = await queryOne<{
+      total_clicks: string;
+      unique_players: string;
+    }>(`
+      SELECT
+        COUNT(*) as total_clicks,
+        COUNT(DISTINCT user_id) as unique_players
+      FROM partner_referral_clicks
+      WHERE partner_id = $1
+    `, [partnerId]).catch(() => null);
+
     return NextResponse.json({
       summary: {
         templates_created: templatesCreated,
@@ -108,6 +127,14 @@ export async function GET() {
         event_type: f.event_type,
         count: parseInt(f.count, 10),
       })),
+      referrals: {
+        total_clicks: parseInt(referralSummary?.total_clicks || '0', 10),
+        unique_players: parseInt(referralSummary?.unique_players || '0', 10),
+        by_source: referralBySource.map(r => ({
+          source: r.source,
+          count: parseInt(r.count, 10),
+        })),
+      },
     });
   } catch (err) {
     console.error('Partner stats query failed:', err);

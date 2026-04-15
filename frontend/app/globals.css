@@ -256,6 +256,11 @@
     @apply bg-accent-soft;
   }
 
+  /* Prevent child text from causing horizontal overflow */
+  .overflow-safe {
+    @apply min-w-0 overflow-hidden;
+  }
+
   /* Hide scrollbar but keep scroll */
   .no-scrollbar {
     -ms-overflow-style: none;

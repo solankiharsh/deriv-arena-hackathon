@@ -98,7 +98,7 @@ export default function LeaderboardPage() {
           <div className="space-y-2">
             {/* Top 3 podium */}
             {entries.length >= 3 && (
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
                 {[entries[1], entries[0], entries[2]].map((entry, idx) => {
                   const podiumRank = [2, 1, 3][idx];
                   const isFirst = podiumRank === 1;
@@ -109,7 +109,7 @@ export default function LeaderboardPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.1 }}
                       className={`
-                        text-center p-4 rounded-card border transition-all
+                        text-center p-2 sm:p-4 rounded-card border transition-all
                         ${isFirst
                           ? 'bg-accent-primary/5 border-accent-primary/20 shadow-glow-gold -mt-4'
                           : 'bg-card border-border'
@@ -117,7 +117,7 @@ export default function LeaderboardPage() {
                       `}
                     >
                       <div className={`
-                        w-14 h-14 mx-auto rounded-full flex items-center justify-center text-lg font-bold mb-2
+                        w-10 h-10 sm:w-14 sm:h-14 mx-auto rounded-full flex items-center justify-center text-sm sm:text-lg font-bold mb-2
                         ${isFirst
                           ? 'bg-gradient-to-br from-accent-soft to-accent-dark text-black'
                           : 'bg-white/[0.05] border border-border text-text-secondary'
@@ -126,10 +126,10 @@ export default function LeaderboardPage() {
                         {entry.display_name?.charAt(0) || '?'}
                       </div>
                       <RankBadge rank={podiumRank} />
-                      <div className="text-sm font-medium text-text-primary mt-1 truncate">
+                      <div className="text-xs sm:text-sm font-medium text-text-primary mt-1 truncate">
                         {entry.display_name}
                       </div>
-                      <div className={`text-lg font-mono font-bold mt-1 ${isFirst ? 'text-accent-primary' : 'text-text-secondary'}`}>
+                      <div className={`text-sm sm:text-lg font-mono font-bold mt-1 ${isFirst ? 'text-accent-primary' : 'text-text-secondary'}`}>
                         {Number(entry.score).toFixed(1)}
                       </div>
                       <div className="text-[10px] text-text-muted">

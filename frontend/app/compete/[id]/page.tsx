@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Loader2, Play, Users, Clock, Trophy } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
@@ -13,8 +13,16 @@ import GradientText from '@/components/reactbits/GradientText';
 export default function CompetePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = (params?.id ?? '') as string;
   const { user, fetchUser } = useArenaAuth();
+
+  const referral = useMemo(() => {
+    const ref = searchParams?.get('ref');
+    const src = searchParams?.get('utm_source');
+    if (!ref) return undefined;
+    return { referred_by: ref, source: src || 'direct' };
+  }, [searchParams]);
 
   const [template, setTemplate] = useState<GameTemplate | null>(null);
   const [instances, setInstances] = useState<GameInstance[]>([]);
@@ -38,11 +46,11 @@ export default function CompetePage() {
     try {
       const waitingInstance = instances.find(i => i.status === 'waiting' || i.status === 'live');
       if (waitingInstance) {
-        await arenaApi.instances.join(waitingInstance.id);
+        await arenaApi.instances.join(waitingInstance.id, referral);
         router.push(`/play/${waitingInstance.id}`);
       } else {
         const { instance } = await arenaApi.instances.create(slug);
-        await arenaApi.instances.join(instance.id);
+        await arenaApi.instances.join(instance.id, referral);
         router.push(`/play/${instance.id}`);
       }
     } catch (err) {
@@ -88,7 +96,7 @@ export default function CompetePage() {
             {GAME_MODE_LABELS[template.game_mode as GameMode]}
           </span>
 
-          <h1 className="text-3xl font-display font-bold mb-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold mb-3">
             <GradientText
               colors={['#E8B45E', '#F5C978', '#D6A04B', '#E8B45E']}
               animationSpeed={4}
@@ -104,7 +112,7 @@ export default function CompetePage() {
             </p>
           )}
 
-          <div className="flex items-center justify-center gap-6 mb-8 text-sm text-text-muted">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mb-8 text-sm text-text-muted">
             {config.duration_minutes && (
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" /> {config.duration_minutes} min

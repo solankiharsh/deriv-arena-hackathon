@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS instance_players (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   instance_id     UUID NOT NULL REFERENCES game_instances(id),
   user_id         UUID NOT NULL REFERENCES arena_users(id),
+  referred_by     UUID REFERENCES arena_users(id),
   score           NUMERIC(12,4) NOT NULL DEFAULT 0,
   normalized_score NUMERIC(8,4) NOT NULL DEFAULT 0,
   rank            INT NOT NULL DEFAULT 0,
@@ -121,6 +122,28 @@ CREATE TABLE IF NOT EXISTS instance_trades (
 
 CREATE INDEX IF NOT EXISTS idx_itrades_instance ON instance_trades(instance_id);
 CREATE INDEX IF NOT EXISTS idx_itrades_user ON instance_trades(user_id);
+
+CREATE TABLE IF NOT EXISTS partner_referral_clicks (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  partner_id    UUID NOT NULL REFERENCES arena_users(id),
+  template_id   UUID NOT NULL REFERENCES game_templates(id),
+  instance_id   UUID REFERENCES game_instances(id),
+  user_id       UUID REFERENCES arena_users(id),
+  source        TEXT NOT NULL DEFAULT 'direct' CHECK (source IN ('whatsapp','telegram','twitter','copy','direct')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_clicks_partner ON partner_referral_clicks(partner_id);
+CREATE INDEX IF NOT EXISTS idx_referral_clicks_template ON partner_referral_clicks(template_id);
+`;
+
+const SEED_SQL = `
+INSERT INTO arena_users (deriv_account_id, deriv_login_id, display_name, role)
+VALUES
+  ('DEMO_P1',      'DEMO_P1',      'Demo Player',  'player'),
+  ('DEMO_PARTNER', 'DEMO_PARTNER', 'Demo Partner', 'partner'),
+  ('DEMO_ADMIN',   'DEMO_ADMIN',   'Demo Admin',   'admin')
+ON CONFLICT (deriv_account_id) DO NOTHING;
 `;
 
 export async function runMigrations(): Promise<string[]> {
@@ -129,8 +152,11 @@ export async function runMigrations(): Promise<string[]> {
   try {
     await client.query('BEGIN');
     await client.query(SCHEMA_SQL);
+    log.push('Schema tables created');
+    await client.query(SEED_SQL);
+    log.push('Demo users seeded');
     await client.query('COMMIT');
-    log.push('Schema migration completed successfully');
+    log.push('Migration completed successfully');
   } catch (err) {
     await client.query('ROLLBACK');
     const message = err instanceof Error ? err.message : String(err);

@@ -88,10 +88,10 @@ export const arenaApi = {
         method: 'POST',
         body: JSON.stringify({ template_slug }),
       }),
-    join: (id: string) =>
+    join: (id: string, referral?: { referred_by?: string; source?: string }) =>
       apiFetch<{ player: InstancePlayer; already_joined: boolean }>(
         `/api/instances/${id}/join`,
-        { method: 'POST' },
+        { method: 'POST', body: JSON.stringify(referral ?? {}) },
       ),
     start: (id: string) =>
       apiFetch<{ success: boolean; started_at: string; ends_at: string }>(
@@ -179,6 +179,11 @@ export const arenaApi = {
           conversions: number;
         }>;
         funnel: Array<{ event_type: string; count: number }>;
+        referrals?: {
+          total_clicks: number;
+          unique_players: number;
+          by_source: Array<{ source: string; count: number }>;
+        };
       }>('/api/partner/stats'),
   },
 

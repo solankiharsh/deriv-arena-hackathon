@@ -510,7 +510,7 @@ export default function ClassicArenaRenderer(props: Props) {
         >
           Stake
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {STAKE_PRESETS.map((amt) => (
             <button
               key={amt}
@@ -535,7 +535,7 @@ export default function ClassicArenaRenderer(props: Props) {
         >
           Duration
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {DURATION_PRESETS.map((p) => {
             const active =
               selectedDuration === p.duration &&

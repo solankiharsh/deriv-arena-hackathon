@@ -303,8 +303,8 @@ export default function ArenaPage() {
             borderBottom: '1px solid rgba(255,255,255,0.08)',
           }}
         >
-          <div className="flex items-center gap-4 px-6 sm:px-10 lg:px-20 xl:px-28 py-3">
-            <h1 className="text-base font-black tracking-tight font-mono">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 px-3 sm:px-10 lg:px-20 xl:px-28 py-3">
+            <h1 className="text-base font-black tracking-tight font-mono shrink-0">
               <GradientText
                 colors={['#E8B45E', '#F5C978', '#D6A04B', '#E8B45E']}
                 animationSpeed={4}
@@ -314,14 +314,14 @@ export default function ArenaPage() {
               </GradientText>
             </h1>
 
-            <div className="flex items-center gap-1 ml-4">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
               {tabs.map((t) => {
                 const Icon = t.icon;
                 return (
                   <button
                     key={t.value}
                     onClick={() => setTab(t.value)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap"
                     style={tab === t.value
                       ? { color: GOLD, background: 'rgba(232,180,94,0.08)', border: '1px solid rgba(232,180,94,0.2)' }
                       : { color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.07)' }
@@ -337,7 +337,7 @@ export default function ArenaPage() {
             {(user?.role === 'partner' || user?.role === 'admin') && (
               <Link
                 href="/create"
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider transition-colors shrink-0"
                 style={{ color: GOLD, border: '1px solid rgba(232,180,94,0.3)' }}
               >
                 <Plus className="w-3 h-3" />

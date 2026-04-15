@@ -17,7 +17,7 @@ if [[ -f "$ROOT/.env" ]]; then
 fi
 set +a
 
-: "${DATABASE_URL:=postgresql://derivarena:derivarena@localhost:5436/derivarena}"
+: "${DATABASE_URL:=postgresql://derivarena:derivarena@localhost:5432/derivarena}"
 : "${PORT:=8090}"
 : "${SHARE_BASE_URL:=http://localhost:3000}"
 export DATABASE_URL PORT SHARE_BASE_URL

@@ -289,10 +289,10 @@ export default function PlayPage() {
     <div className="min-h-screen bg-bg-primary">
       {/* Header */}
       <div className="sticky top-16 z-30 bg-bg-primary/95 backdrop-blur-lg border-b border-border">
-        <div className="container-colosseum py-2 flex items-center gap-3">
+        <div className="container-colosseum py-2 flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => router.push('/arena')}
-            className="text-text-muted hover:text-text-primary transition-colors"
+            className="text-text-muted hover:text-text-primary transition-colors shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -302,19 +302,18 @@ export default function PlayPage() {
               <h1 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary truncate">
                 {(instance as ExtendedInstance).template_name || 'Game'}
               </h1>
-              <span className="text-[10px] font-mono text-text-muted px-2 py-0.5 border border-border rounded-pill">
+              <span className="hidden sm:inline text-[10px] font-mono text-text-muted px-2 py-0.5 border border-border rounded-pill whitespace-nowrap">
                 {GAME_MODE_LABELS[(instance as ExtendedInstance).game_mode as keyof typeof GAME_MODE_LABELS] || 'Classic'}
               </span>
             </div>
           </div>
 
-          <GameTimer
-            endsAt={instance.ends_at}
-            status={instance.status}
-            onTimeUp={handleTimeUp}
-          />
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <GameTimer
+              endsAt={instance.ends_at}
+              status={instance.status}
+              onTimeUp={handleTimeUp}
+            />
             <span className="flex items-center gap-1 text-xs text-text-muted">
               <Users className="w-3.5 h-3.5" />
               {instance.player_count}
@@ -324,7 +323,7 @@ export default function PlayPage() {
               className="btn-ghost text-xs gap-1"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Share2 className="w-3.5 h-3.5" />}
-              {copied ? 'Copied' : 'Share'}
+              <span className="hidden sm:inline">{copied ? 'Copied' : 'Share'}</span>
             </button>
           </div>
         </div>
@@ -354,8 +353,8 @@ export default function PlayPage() {
               Share the link and start when everyone is ready.
             </p>
 
-            <div className="flex items-center gap-2 justify-center mb-6">
-              <code className="text-xs font-mono bg-bg-secondary border border-border rounded-lg px-3 py-2 text-text-secondary">
+            <div className="flex items-center gap-2 justify-center mb-6 max-w-full px-2">
+              <code className="text-xs font-mono bg-bg-secondary border border-border rounded-lg px-3 py-2 text-text-secondary truncate min-w-0">
                 {typeof window !== 'undefined' ? `${window.location.origin}/play/${instanceId}` : ''}
               </code>
               <button onClick={handleCopyLink} className="btn-ghost">
@@ -464,7 +463,7 @@ export default function PlayPage() {
                       ${totalPnl.toFixed(2)}
                     </span>
                   </p>
-                  <div className="flex gap-3 justify-center">
+                  <div className="flex flex-wrap gap-3 justify-center">
                     <button onClick={() => router.push('/arena')} className="btn-secondary">
                       Back to Arena
                     </button>

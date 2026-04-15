@@ -19,6 +19,7 @@ function LoginContent() {
   const { user, fetchUser, setUser, clearLogoutFlag } = useArenaAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
 
   useEffect(() => {
     clearLogoutFlag();
@@ -212,11 +213,17 @@ function LoginContent() {
         {/* Demo login for development/judging */}
         <div className="mt-8 pt-6 border-t border-border">
           <p className="text-text-muted text-xs mb-3 uppercase tracking-wider">Demo Access (for judges)</p>
+          {demoError && (
+            <div className="mb-3 p-2 rounded-lg bg-error/10 border border-error/20 text-error text-xs">
+              {demoError}
+            </div>
+          )}
           <div className="flex gap-2 justify-center">
             {(['player', 'partner', 'admin'] as const).map((role) => (
               <button
                 key={role}
                 onClick={async () => {
+                  setDemoError(null);
                   try {
                     clearLogoutFlag();
                     const res = await fetch('/api/auth/demo', {
@@ -228,8 +235,13 @@ function LoginContent() {
                       const data = await res.json();
                       setUser(data.user);
                       router.push('/arena');
+                    } else {
+                      const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+                      setDemoError(data.error || `Login failed (${res.status})`);
                     }
-                  } catch {}
+                  } catch (err) {
+                    setDemoError('Network error. Is the server running?');
+                  }
                 }}
                 className="px-3 py-1.5 text-xs font-mono border border-border rounded-pill text-text-secondary hover:text-text-primary hover:border-border-strong transition-all capitalize"
               >

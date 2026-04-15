@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Users, Gamepad2, TrendingUp,
-  ArrowUpRight, Target, Loader2, ChevronRight, Shield,
+  ArrowUpRight, Target, Loader2, ChevronRight, Shield, Share2,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
@@ -55,6 +55,11 @@ interface PartnerData {
     conversions: number;
   }>;
   funnel: Array<{ event_type: string; count: number }>;
+  referrals?: {
+    total_clicks: number;
+    unique_players: number;
+    by_source: Array<{ source: string; count: number }>;
+  };
 }
 
 export default function PartnerDashboard() {
@@ -183,6 +188,37 @@ export default function PartnerDashboard() {
           </div>
         )}
 
+        {/* Referral Stats */}
+        {data?.referrals && data.referrals.total_clicks > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+            className="bg-card border border-border rounded-card p-6 mb-8"
+          >
+            <h2 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary mb-4 flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-purple-400" /> Referral Performance
+            </h2>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <div className="text-2xl font-mono font-bold text-text-primary">{data.referrals.total_clicks}</div>
+                <div className="text-xs text-text-muted uppercase tracking-wider">Link Clicks</div>
+              </div>
+              <div>
+                <div className="text-2xl font-mono font-bold text-text-primary">{data.referrals.unique_players}</div>
+                <div className="text-xs text-text-muted uppercase tracking-wider">Unique Players</div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {data.referrals.by_source.map((s) => (
+                <span key={s.source} className="text-[11px] font-mono px-3 py-1 border border-border rounded-pill text-text-muted">
+                  {s.source}: <span className="text-text-primary font-bold">{s.count}</span>
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Daily Conversions Chart */}
         {data && data.daily_conversions.length > 0 && (
           <motion.div
@@ -194,7 +230,7 @@ export default function PartnerDashboard() {
             <h2 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary mb-4">
               Daily Conversions (Last 30 Days)
             </h2>
-            <div className="flex items-end gap-1 h-32">
+            <div className="flex items-end gap-1 h-24 sm:h-32">
               {data.daily_conversions.map((d) => {
                 const height = Math.max(4, (d.count / dailyMax) * 100);
                 return (

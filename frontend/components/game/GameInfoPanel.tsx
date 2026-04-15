@@ -41,21 +41,21 @@ export default function GameInfoPanel({
     <div className="bg-card border border-border rounded-card overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 p-4 hover:bg-white/[0.02] transition-colors"
+        className="w-full flex flex-wrap items-center gap-2 p-3 sm:p-4 hover:bg-white/[0.02] transition-colors"
       >
-        <Info className="w-4 h-4 text-text-muted" />
-        <h3 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary">
+        <Info className="w-4 h-4 text-text-muted shrink-0" />
+        <h3 className="text-sm font-display font-bold uppercase tracking-wider text-text-primary min-w-0 truncate">
           About This Game
         </h3>
-        <span className="text-[10px] font-mono text-text-muted px-2 py-0.5 border border-border rounded-pill ml-2">
+        <span className="text-[10px] font-mono text-text-muted px-2 py-0.5 border border-border rounded-pill shrink-0">
           {modeName}
         </span>
         {showInstructions && !isExpanded && (
-          <span className="text-[10px] font-mono text-accent-primary px-2 py-0.5 bg-accent-primary/10 border border-accent-primary/20 rounded-pill">
+          <span className="text-[10px] font-mono text-accent-primary px-2 py-0.5 bg-accent-primary/10 border border-accent-primary/20 rounded-pill shrink-0">
             Instructions moved here
           </span>
         )}
-        <span className="ml-auto text-text-muted">
+        <span className="ml-auto text-text-muted shrink-0">
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
@@ -178,7 +178,7 @@ export default function GameInfoPanel({
               <span className="text-[10px] font-mono uppercase text-text-muted tracking-wider block mb-2">
                 Game Configuration
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {config.duration_minutes != null && (
                   <ConfigItem icon={Clock} label="Duration" value={`${config.duration_minutes} min`} />
                 )}

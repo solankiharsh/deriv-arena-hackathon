@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, ArrowLeft, Trophy, Ghost, Flame, Brain, Target, Zap, Clock, Users, Loader2 } from 'lucide-react';
+import { Plus, ArrowLeft, Trophy, Ghost, Flame, Brain, Target, Zap, Clock, Users, Loader2, Share2 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
 import type { GameMode, GameTemplate } from '@/lib/arena-types';
 import { GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '@/lib/arena-types';
 import GradientText from '@/components/reactbits/GradientText';
+import ShareGameModal from '@/components/ShareGameModal';
 
 const MODE_OPTIONS: { value: GameMode; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }[] = [
   { value: 'classic', icon: Trophy, color: '#E8B45E' },
@@ -30,6 +31,7 @@ export default function CreateTemplatePage() {
   const [gameMode, setGameMode] = useState<GameMode>('classic');
   const [duration, setDuration] = useState(15);
   const [maxPlayers, setMaxPlayers] = useState(50);
+  const [sharingTemplate, setSharingTemplate] = useState<GameTemplate | null>(null);
 
   useEffect(() => {
     fetchUser();
@@ -254,18 +256,31 @@ export default function CreateTemplatePage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      const url = `${window.location.origin}/compete/${t.slug}`;
-                      navigator.clipboard.writeText(url);
-                    }}
-                    className="btn-ghost text-xs"
+                    onClick={() => setSharingTemplate(t)}
+                    className="btn-ghost text-xs flex items-center gap-1"
                   >
-                    Copy Link
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share
                   </button>
                 </div>
               ))}
             </div>
           </div>
+        )}
+
+        {sharingTemplate && user && (
+          <ShareGameModal
+            templateName={sharingTemplate.name}
+            templateSlug={sharingTemplate.slug}
+            gameMode={sharingTemplate.game_mode}
+            durationMinutes={
+              typeof sharingTemplate.config === 'object'
+                ? (sharingTemplate.config as Record<string, unknown>).duration_minutes as number | undefined
+                : undefined
+            }
+            partnerId={user.id}
+            onClose={() => setSharingTemplate(null)}
+          />
         )}
       </div>
     </div>

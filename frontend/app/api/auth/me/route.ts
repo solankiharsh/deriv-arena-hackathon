@@ -9,14 +9,20 @@ export async function GET() {
     return NextResponse.json({ user: null });
   }
 
-  const user = await queryOne<ArenaUser>(
-    'SELECT * FROM arena_users WHERE id = $1',
-    [session.uid],
-  );
+  try {
+    const user = await queryOne<ArenaUser>(
+      'SELECT * FROM arena_users WHERE id = $1',
+      [session.uid],
+    );
 
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 404 });
+    if (!user) {
+      console.warn(`[auth/me] Session valid but user not found in DB: uid=${session.uid}`);
+      return NextResponse.json({ user: null }, { status: 404 });
+    }
+
+    return NextResponse.json({ user });
+  } catch (err) {
+    console.error(`[auth/me] DB query failed for uid=${session.uid}:`, err);
+    return NextResponse.json({ user: null }, { status: 500 });
   }
-
-  return NextResponse.json({ user });
 }
