@@ -77,9 +77,9 @@ export function PaperAgentClient() {
   );
 
   const runStep = useCallback(() => {
+    const swarm = runSwarm(ctx, knobs);
+    setLastSwarm(swarm);
     setLedger((prev) => {
-      const swarm = runSwarm(ctx, knobs);
-      setLastSwarm(swarm);
       prev.applyPaperStep({
         symbol,
         markQuote: lastQuote,
@@ -158,7 +158,7 @@ export function PaperAgentClient() {
           </p>
         </div>
 
-        <AgentDataFlow />
+        <AgentDataFlow animatePipeline={false} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div

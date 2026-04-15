@@ -62,8 +62,17 @@ ws.addEventListener('message', (ev) => {
   }
   if (d.msg_type !== 'history') return;
 
-  const prices = parseHistoryPrices(d);
-  if (!prices) fail('No history.prices from Deriv');
+  const pricesParsed = parseHistoryPrices(d);
+  if (!pricesParsed) {
+    console.error('No history.prices from Deriv');
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    process.exit(1);
+  }
+  const prices = pricesParsed;
 
   const returns: number[] = [];
   for (let i = 1; i < prices.length; i++) {

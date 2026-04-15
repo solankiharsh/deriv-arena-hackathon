@@ -103,11 +103,25 @@ interface Pulse {
     startTime: number;
 }
 
-function usePulseEngine(feedCount: number, duration: number, interval: number) {
+function pulsesShallowEqual(a: Pulse[], b: Pulse[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i]?.id !== b[i]?.id) return false;
+    }
+    return true;
+}
+
+/** When disabled or feedCount is 0, no spawns and no per-frame state updates (avoids runaway re-renders). */
+function usePulseEngine(enabled: boolean, feedCount: number, duration: number, interval: number) {
     const [pulses, setPulses] = useState<Pulse[]>([]);
 
     useEffect(() => {
-        const timeouts: NodeJS.Timeout[] = [];
+        if (!enabled || feedCount <= 0) {
+            setPulses([]);
+            return;
+        }
+
+        const timeouts: ReturnType<typeof setTimeout>[] = [];
 
         const spawn = (i: number) => {
             setPulses(prev => [
@@ -121,21 +135,30 @@ function usePulseEngine(feedCount: number, duration: number, interval: number) {
             timeouts.push(setTimeout(() => spawn(i), Math.random() * interval * 1000));
         }
 
-        return () => timeouts.forEach(clearTimeout);
-    }, [feedCount, interval]);
+        return () => {
+            timeouts.forEach(clearTimeout);
+        };
+    }, [enabled, feedCount, interval]);
 
-    // Prune expired
+    // Prune expired — only commit when the pulse list actually changes (prevents ~60 React commits/sec).
     useEffect(() => {
+        if (!enabled || feedCount <= 0) {
+            return;
+        }
+
         let raf: number;
         const durationMs = duration * 1000;
         const tick = () => {
             const now = Date.now();
-            setPulses(prev => prev.filter(p => (now - p.startTime) / durationMs < 1));
+            setPulses(prev => {
+                const next = prev.filter(p => (now - p.startTime) / durationMs < 1);
+                return pulsesShallowEqual(prev, next) ? prev : next;
+            });
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [duration]);
+    }, [enabled, feedCount, duration]);
 
     return pulses;
 }
@@ -165,8 +188,14 @@ function PulseLayer({
     }, [feedPositions, agentPos]);
 
     useEffect(() => {
+        if (pulses.length === 0) {
+            setSegments([]);
+            return;
+        }
+
         let raf: number;
         const durationMs = duration * 1000;
+        let lastSig = '';
 
         const calc = () => {
             const now = Date.now();
@@ -207,7 +236,11 @@ function PulseLayer({
                 });
             }
 
-            setSegments(segs);
+            const sig = segs.map(s => `${s.id}:${s.d}:${s.opacity.toFixed(3)}`).join('|');
+            if (sig !== lastSig) {
+                lastSig = sig;
+                setSegments(segs);
+            }
             raf = requestAnimationFrame(calc);
         };
         raf = requestAnimationFrame(calc);
@@ -257,7 +290,7 @@ const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof ListChecks }[] =
     { id: 'chats', label: 'Chats', icon: MessageSquare },
 ];
 
-export function AgentDataFlow() {
+export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: boolean }) {
     const { agent } = useAuthStore();
     const { user, authenticated, login } = usePrivy();
     const rawAvatarUrl = agent?.avatarUrl || user?.twitter?.profilePictureUrl || null;
@@ -306,7 +339,7 @@ export function AgentDataFlow() {
         });
     }, [expanded, agent]);
 
-    const pulses = usePulseEngine(FEEDS.length, 3.5, 5);
+    const pulses = usePulseEngine(animatePipeline, FEEDS.length, 3.5, 5);
 
     const feedPositions = useMemo(() => {
         // 4 corners around the center agent
@@ -637,15 +670,17 @@ export function AgentDataFlow() {
         <div className="bg-[#0a0a12]/60 backdrop-blur-xl border border-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_8px_32px_rgba(0,0,0,0.5)]">
             <div ref={containerRef} className="relative h-[180px]">
 
-                {/* Pulse animation layer */}
-                <PulseLayer
-                    feedPositions={feedPositions}
-                    agentPos={agentPos}
-                    pulses={pulses}
-                    duration={3.5}
-                    width={dims.w}
-                    height={dims.h}
-                />
+                {/* Pulse animation layer (skip when static — saves GPU/CPU on lab pages) */}
+                {animatePipeline && (
+                    <PulseLayer
+                        feedPositions={feedPositions}
+                        agentPos={agentPos}
+                        pulses={pulses}
+                        duration={3.5}
+                        width={dims.w}
+                        height={dims.h}
+                    />
+                )}
 
                 {/* ── Feed nodes (2x2 grid on left) ── */}
                 {FEEDS.map((feed, i) => {
