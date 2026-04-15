@@ -3,11 +3,12 @@
 const GOLD = '#E8B45E';
 const BG = '#07090F';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Bot, ChevronLeft, Play, RotateCcw } from 'lucide-react';
+import { Bot, ChevronLeft, Play, RotateCcw, Radio } from 'lucide-react';
 import { toast } from 'sonner';
 import { AgentDataFlow } from '@/components/dashboard';
+import { useDerivPublicTicks } from '@/hooks/useDerivPublicTicks';
 import {
   loadAgentPolicyFromStorage,
   parseAgentPolicy,
@@ -30,16 +31,28 @@ import {
   winStreakFromLedger,
 } from '@/lib/paper';
 import { AgentPolicyWizard } from './AgentPolicyWizard';
+import { PaperAgentRunChart, type RunHistoryPoint } from './PaperAgentRunChart';
 
 export function PaperAgentClient() {
   const [policy, setPolicy] = useState<AgentPolicy>(() => ({ ...parseAgentPolicy(null) }));
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [returns, setReturns] = useState<number[]>([0.0001, -0.00005, 0.00012, 0.00008, -0.00002]);
-  const [lastQuote, setLastQuote] = useState(1000);
+  const [simReturns, setSimReturns] = useState<number[]>([0.0001, -0.00005, 0.00012, 0.00008, -0.00002]);
+  const [simQuote, setSimQuote] = useState(1000);
+  const [liveFeed, setLiveFeed] = useState(false);
+  const [autoStep, setAutoStep] = useState(false);
   const [barIndex, setBarIndex] = useState(0);
   const [ledger, setLedger] = useState<PaperLedger>(() => new PaperLedger(10_000));
   const [lastSwarm, setLastSwarm] = useState<SwarmResult | null>(null);
   const [lastConf, setLastConf] = useState(0.45);
+  const [runHistory, setRunHistory] = useState<RunHistoryPoint[]>([]);
+  const ledgerRef = useRef(ledger);
+  ledgerRef.current = ledger;
+
+  const symbol = policy.preferences.primarySymbol;
+  const live = useDerivPublicTicks(symbol, liveFeed);
+
+  const mark = liveFeed && live.quote != null ? live.quote : simQuote;
+  const returns = liveFeed && live.returns.length >= 3 ? live.returns : simReturns;
 
   useEffect(() => {
     const p = loadAgentPolicyFromStorage();
@@ -50,28 +63,26 @@ export function PaperAgentClient() {
     } else {
       setLedger(new PaperLedger(p.deployment.paperStartingCash));
     }
-    setLastQuote(1000);
+    setSimQuote(1000);
   }, []);
 
-  const symbol = policy.preferences.primarySymbol;
-
   const derivedPreview = useMemo(() => {
-    const snap = ledger.snapshot(lastQuote);
+    const snap = ledger.snapshot(mark);
     return policyToTradingRuntime(policy, {
       winStreak: winStreakFromLedger(ledger),
       confidence: lastConf,
       equityApprox: snap.equityApprox,
     });
-  }, [policy, ledger, lastQuote, lastConf]);
+  }, [policy, ledger, mark, lastConf]);
 
   const ctx: MarketContext = useMemo(
     () => ({
       symbol,
-      lastQuote,
+      lastQuote: mark,
       returns: returns.slice(-derivedPreview.returnsLookback),
       sentimentPlaceholder: sentimentFromPolicy(policy, policy.preferences.strategyNotes),
     }),
-    [symbol, lastQuote, returns, derivedPreview.returnsLookback, policy],
+    [symbol, mark, returns, derivedPreview.returnsLookback, policy],
   );
 
   const savePolicy = useCallback(() => {
@@ -98,8 +109,9 @@ export function PaperAgentClient() {
     if (!policy.deployment.deploymentAcknowledged) {
       toast.message('Launch step: confirm paper trading notice first.');
     }
-    const snap = ledger.snapshot(lastQuote);
-    const streak = winStreakFromLedger(ledger);
+    const L = ledgerRef.current;
+    const snap = L.snapshot(mark);
+    const streak = winStreakFromLedger(L);
     const rt = policyToTradingRuntime(policy, {
       winStreak: streak,
       confidence: lastConf,
@@ -115,31 +127,52 @@ export function PaperAgentClient() {
 
     setLastSwarm(swarm);
     setLastConf(swarm.fused.confidence);
+
+    const bar = barIndex;
     setLedger((prev) => {
-      prev.applyPaperStep({
+      const copy = deserializePaperLedger(serializePaperLedger(prev)) ?? prev;
+      copy.applyPaperStep({
         symbol,
-        markQuote: lastQuote,
+        markQuote: mark,
         action: swarm.fused.action,
         confidence: swarm.fused.confidence,
         knobs: knobsForPaper,
-        barIndex,
+        barIndex: bar,
         maxOpenBars: rt.maxOpenBars,
       });
-      savePaperLedgerToStorage(prev);
-      return deserializePaperLedger(serializePaperLedger(prev)) ?? prev;
+      const eq = copy.snapshot(mark).equityApprox;
+      queueMicrotask(() =>
+        setRunHistory((h) =>
+          [...h, { bar, equity: eq, action: swarm.fused.action, score: swarm.fused.score, conf: swarm.fused.confidence }].slice(-400),
+        ),
+      );
+      savePaperLedgerToStorage(copy);
+      return copy;
     });
     setBarIndex((b) => {
       toast.message(`Bar ${b}: ${swarm.fused.action}`);
       return b + 1;
     });
-  }, [ctx, policy, symbol, lastQuote, barIndex, ledger, lastConf]);
+  }, [ctx, policy, symbol, mark, barIndex, lastConf]);
+
+  const runStepRef = useRef(runStep);
+  runStepRef.current = runStep;
+  const lastAutoRef = useRef(0);
+  useEffect(() => {
+    if (!liveFeed || !autoStep) return;
+    if (live.quote == null || live.returns.length < 5) return;
+    const t = Date.now();
+    if (t - lastAutoRef.current < 2000) return;
+    lastAutoRef.current = t;
+    runStepRef.current();
+  }, [liveFeed, autoStep, live.quote, live.returns.length]);
 
   const pushSyntheticBar = useCallback(() => {
     const drift = (Math.sin(barIndex / 3) * 0.00015 + (barIndex % 5 === 0 ? 0.00008 : 0)) as number;
     const noise = (Math.random() - 0.5) * 0.00006;
     const r = drift + noise;
-    setReturns((prev) => [...prev.slice(-60), r]);
-    setLastQuote((q) => Math.max(1e-6, q * (1 + r)));
+    setSimReturns((prev) => [...prev.slice(-60), r]);
+    setSimQuote((q) => Math.max(1e-6, q * (1 + r)));
   }, [barIndex]);
 
   const resetLedger = useCallback(() => {
@@ -148,6 +181,7 @@ export function PaperAgentClient() {
     setLedger(new PaperLedger(cash));
     setBarIndex(0);
     setLastConf(0.45);
+    setRunHistory([]);
     toast.message('Paper ledger reset');
   }, [policy.deployment.paperStartingCash]);
 
@@ -176,8 +210,8 @@ export function PaperAgentClient() {
         <div>
           <h1 className="text-lg font-black font-mono text-white tracking-tight">PAPER SWARM LAB</h1>
           <p className="text-[11px] font-mono mt-0.5 text-white/35 max-w-2xl">
-            Configure agent policy (wizard), then run the swarm against Deriv-style returns. Stakes and timing follow your money approach, patience, and
-            personality.
+            Policy drives swarm weights and paper sizing. Use{' '}
+            <span className="text-white/55">live Deriv public ticks</span> for real synthetic index quotes (1HZ*, R_*), or the offline simulator.
           </p>
         </div>
 
@@ -205,20 +239,35 @@ export function PaperAgentClient() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="border border-white/[0.08] rounded-lg p-4 space-y-3" style={{ background: 'rgba(18,18,26,0.5)' }}>
             <h2 className="text-xs font-bold font-mono uppercase tracking-wider" style={{ color: GOLD }}>
-              Market sim
+              Market data
             </h2>
-            <p className="text-[10px] text-white/35 font-mono">Symbol {symbol}</p>
+            <div className="flex flex-wrap gap-3 items-center text-[11px] font-mono">
+              <label className="flex items-center gap-2 cursor-pointer text-white/70">
+                <input type="checkbox" checked={liveFeed} onChange={(e) => setLiveFeed(e.target.checked)} />
+                <Radio className="w-3.5 h-3.5 text-amber-400/80" />
+                Live Deriv public WS
+              </label>
+              <span className="text-white/35">{live.status}{live.detail ? ` — ${live.detail}` : ''}</span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] font-mono text-white/60">
+              <input type="checkbox" checked={autoStep} onChange={(e) => setAutoStep(e.target.checked)} disabled={!liveFeed} />
+              Auto step (~2s throttle, needs live ticks)
+            </label>
+            <p className="text-[10px] text-white/35 font-mono">
+              Symbol <span className="text-amber-200/90">{symbol}</span> · mark {mark.toFixed(5)} · returns {returns.length}
+            </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                disabled={liveFeed}
                 onClick={() => {
                   pushSyntheticBar();
-                  toast.message('Synthetic bar');
+                  toast.message('Simulated bar');
                 }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-[11px] font-mono uppercase border border-white/10 text-white/80 hover:bg-white/5"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-[11px] font-mono uppercase border border-white/10 text-white/80 hover:bg-white/5 disabled:opacity-30"
               >
                 <Play className="w-3.5 h-3.5" />
-                Push bar
+                Push sim bar
               </button>
               <button
                 type="button"
@@ -237,8 +286,10 @@ export function PaperAgentClient() {
               </button>
             </div>
           </div>
-          <PaperStatePanel ledger={ledger} lastQuote={lastQuote} barIndex={barIndex} />
+          <PaperStatePanel ledger={ledger} lastQuote={mark} barIndex={barIndex} />
         </div>
+
+        <PaperAgentRunChart history={runHistory} lastSwarm={lastSwarm} />
 
         <TerminalSwarmPanel swarm={lastSwarm} />
       </div>

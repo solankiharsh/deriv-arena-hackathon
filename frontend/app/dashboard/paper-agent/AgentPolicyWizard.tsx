@@ -291,34 +291,70 @@ function StepPreferences({ policy, setPolicy }: { policy: AgentPolicy; setPolicy
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] uppercase text-white/35">Market sense</div>
+      <div className="text-[10px] uppercase text-white/35">Signal mix (Deriv data)</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Choice
-          label="Fixed rules"
-          desc="Technical / quant path; damp sentiment input."
+          label="Tickstructure only"
+          desc="Weights ticks, probability, regime; sentiment channel off."
           selected={policy.preferences.marketSense === 'fixed_rules'}
           onSelect={() => setPref({ marketSense: 'fixed_rules' })}
         />
         <Choice
-          label="Mood reader"
-          desc="Uses notes + sentiment placeholder in swarm."
+          label="Narrative tilt"
+          desc="Adds soft sentiment from your strategy notes (optional overlay)."
           selected={policy.preferences.marketSense === 'mood_reader'}
           onSelect={() => setPref({ marketSense: 'mood_reader' })}
         />
       </div>
-      <div className="text-[10px] uppercase text-white/35">Asset focus (Deriv presets)</div>
+      <div className="text-[10px] uppercase text-white/35">Synthetic family (Deriv API symbols)</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <Choice label="Stocks fan" desc="Vol indices e.g. 1HZ100V" selected={policy.preferences.assetLove === 'stocks_fan'} onSelect={() => onAsset('stocks_fan')} />
-        <Choice label="Forex pro" desc="R_* synthetic pairs" selected={policy.preferences.assetLove === 'forex_pro'} onSelect={() => onAsset('forex_pro')} />
-        <Choice label="Crypto rebel" desc="High-vol crypto-like synthetics" selected={policy.preferences.assetLove === 'crypto_rebel'} onSelect={() => onAsset('crypto_rebel')} />
-        <Choice label="All-rounder" desc="Mixed default" selected={policy.preferences.assetLove === 'all_rounder'} onSelect={() => onAsset('all_rounder')} />
+        <Choice
+          label="Volatility 1s (1HZ*)"
+          desc="One-second volatility indices — default 1HZ100V."
+          selected={policy.preferences.assetLove === 'stocks_fan'}
+          onSelect={() => onAsset('stocks_fan')}
+        />
+        <Choice
+          label="Countdown ranges (R_*)"
+          desc="Range-style synthetics — default R_75."
+          selected={policy.preferences.assetLove === 'forex_pro'}
+          onSelect={() => onAsset('forex_pro')}
+        />
+        <Choice
+          label="Faster-tick vol"
+          desc="Higher tick cadence vol index — default 1HZ50V."
+          selected={policy.preferences.assetLove === 'crypto_rebel'}
+          onSelect={() => onAsset('crypto_rebel')}
+        />
+        <Choice
+          label="Mixed synthetics"
+          desc="Blended 1HZ + R_* profile — default 1HZ75V."
+          selected={policy.preferences.assetLove === 'all_rounder'}
+          onSelect={() => onAsset('all_rounder')}
+        />
       </div>
-      <label className="block text-[10px] uppercase text-white/35">Primary symbol</label>
+      <label className="block text-[10px] uppercase text-white/35">Primary symbol (Deriv underlying)</label>
       <input
         value={policy.preferences.primarySymbol}
         onChange={(e) => setPref({ primarySymbol: e.target.value.replace(/[^\w]/g, '').slice(0, 32) })}
         className="w-full bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-sm text-white font-mono"
       />
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {['1HZ100V', '1HZ75V', '1HZ50V', 'R_10', 'R_25', 'R_50', 'R_75', 'R_100'].map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setPref({ primarySymbol: s })}
+            className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+              policy.preferences.primarySymbol === s
+                ? 'border-amber-500/50 bg-amber-500/15 text-amber-200'
+                : 'border-white/10 text-white/45 hover:bg-white/5'
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
       <label className="block text-[10px] uppercase text-white/35">Strategy notes</label>
       <textarea
         value={policy.preferences.strategyNotes}

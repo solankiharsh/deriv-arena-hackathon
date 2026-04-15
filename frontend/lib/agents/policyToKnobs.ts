@@ -143,6 +143,7 @@ export function policyToTradingRuntime(
   };
 }
 
+/** Default Deriv synthetic underlying per policy focus (API symbols, not asset-class markets). */
 export function defaultSymbolForAsset(asset: AgentPolicy['preferences']['assetLove']): string {
   switch (asset) {
     case 'stocks_fan':
@@ -150,7 +151,7 @@ export function defaultSymbolForAsset(asset: AgentPolicy['preferences']['assetLo
     case 'forex_pro':
       return 'R_75';
     case 'crypto_rebel':
-      return '1HZ100V';
+      return '1HZ50V';
     case 'all_rounder':
       return '1HZ75V';
     default:
