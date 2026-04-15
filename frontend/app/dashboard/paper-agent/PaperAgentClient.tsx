@@ -5,10 +5,21 @@ const BG = '#07090F';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bot, ChevronLeft, Play, RotateCcw, Save } from 'lucide-react';
+import { Bot, ChevronLeft, Play, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { AgentDataFlow } from '@/components/dashboard';
-import { DEFAULT_KNOBS, runSwarm, type AgentProfileKnobs, type MarketContext, type SwarmResult } from '@/lib/agents';
+import {
+  loadAgentPolicyFromStorage,
+  parseAgentPolicy,
+  policyToTradingRuntime,
+  randomAgentPolicy,
+  runSwarm,
+  saveAgentPolicyToStorage,
+  sentimentFromPolicy,
+  type AgentPolicy,
+  type MarketContext,
+  type SwarmResult,
+} from '@/lib/agents';
 import {
   PaperLedger,
   clearPaperLedgerStorage,
@@ -16,222 +27,193 @@ import {
   loadPaperLedgerFromStorage,
   savePaperLedgerToStorage,
   serializePaperLedger,
+  winStreakFromLedger,
 } from '@/lib/paper';
-
-const PERSONALITY_KEY = 'derivarena-paper-personality-v1';
-const MAX_ARCH = 64;
-const MAX_PERSONALITY = 280;
-const MAX_STRATEGY = 500;
-
-function clampStr(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max);
-}
-
-function loadPersonality(): { archetype: string; personality: string; strategyNotes: string } {
-  if (typeof window === 'undefined') {
-    return { archetype: '', personality: '', strategyNotes: '' };
-  }
-  try {
-    const raw = window.localStorage.getItem(PERSONALITY_KEY);
-    if (!raw) return { archetype: 'Operator', personality: '', strategyNotes: '' };
-    const o = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      archetype: clampStr(String(o.archetype ?? 'Operator'), MAX_ARCH),
-      personality: clampStr(String(o.personality ?? ''), MAX_PERSONALITY),
-      strategyNotes: clampStr(String(o.strategyNotes ?? ''), MAX_STRATEGY),
-    };
-  } catch {
-    return { archetype: 'Operator', personality: '', strategyNotes: '' };
-  }
-}
+import { AgentPolicyWizard } from './AgentPolicyWizard';
 
 export function PaperAgentClient() {
-  const [archetype, setArchetype] = useState('');
-  const [personality, setPersonality] = useState('');
-  const [strategyNotes, setStrategyNotes] = useState('');
-  const [symbol, setSymbol] = useState('1HZ100V');
-  const [lastQuote, setLastQuote] = useState(1000);
+  const [policy, setPolicy] = useState<AgentPolicy>(() => ({ ...parseAgentPolicy(null) }));
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [returns, setReturns] = useState<number[]>([0.0001, -0.00005, 0.00012, 0.00008, -0.00002]);
-  const [knobs, setKnobs] = useState<AgentProfileKnobs>({ ...DEFAULT_KNOBS });
+  const [lastQuote, setLastQuote] = useState(1000);
   const [barIndex, setBarIndex] = useState(0);
   const [ledger, setLedger] = useState<PaperLedger>(() => new PaperLedger(10_000));
   const [lastSwarm, setLastSwarm] = useState<SwarmResult | null>(null);
+  const [lastConf, setLastConf] = useState(0.45);
 
   useEffect(() => {
-    const p = loadPersonality();
-    setArchetype(p.archetype);
-    setPersonality(p.personality);
-    setStrategyNotes(p.strategyNotes);
+    const p = loadAgentPolicyFromStorage();
+    setPolicy(p);
     const L = loadPaperLedgerFromStorage();
-    if (L) setLedger(L);
+    if (L) {
+      setLedger(L);
+    } else {
+      setLedger(new PaperLedger(p.deployment.paperStartingCash));
+    }
+    setLastQuote(1000);
   }, []);
+
+  const symbol = policy.preferences.primarySymbol;
+
+  const derivedPreview = useMemo(() => {
+    const snap = ledger.snapshot(lastQuote);
+    return policyToTradingRuntime(policy, {
+      winStreak: winStreakFromLedger(ledger),
+      confidence: lastConf,
+      equityApprox: snap.equityApprox,
+    });
+  }, [policy, ledger, lastQuote, lastConf]);
 
   const ctx: MarketContext = useMemo(
     () => ({
       symbol,
       lastQuote,
-      returns,
-      sentimentPlaceholder: personality.trim() ? Math.min(1, personality.length / 280) * 0.2 - 0.1 : 0,
+      returns: returns.slice(-derivedPreview.returnsLookback),
+      sentimentPlaceholder: sentimentFromPolicy(policy, policy.preferences.strategyNotes),
     }),
-    [symbol, lastQuote, returns, personality],
+    [symbol, lastQuote, returns, derivedPreview.returnsLookback, policy],
   );
 
+  const savePolicy = useCallback(() => {
+    if (!policy.deployment.deploymentAcknowledged) {
+      toast.error('Confirm the paper-trading notice (Launch step) before saving.');
+      setWizardStep(5);
+      return;
+    }
+    saveAgentPolicyToStorage(policy);
+    toast.success('Agent policy saved locally');
+  }, [policy]);
+
+  const onWizardSave = useCallback(() => {
+    if (!policy.deployment.deploymentAcknowledged) {
+      toast.error('Check the acknowledgement box on Launch.');
+      setWizardStep(5);
+      return;
+    }
+    saveAgentPolicyToStorage(policy);
+    toast.success('Agent policy saved');
+  }, [policy]);
+
   const runStep = useCallback(() => {
-    const swarm = runSwarm(ctx, knobs);
+    if (!policy.deployment.deploymentAcknowledged) {
+      toast.message('Launch step: confirm paper trading notice first.');
+    }
+    const snap = ledger.snapshot(lastQuote);
+    const streak = winStreakFromLedger(ledger);
+    const rt = policyToTradingRuntime(policy, {
+      winStreak: streak,
+      confidence: lastConf,
+      equityApprox: snap.equityApprox,
+    });
+    const swarm = runSwarm(ctx, rt.knobs);
+    const rtStake = policyToTradingRuntime(policy, {
+      winStreak: streak,
+      confidence: swarm.fused.confidence,
+      equityApprox: snap.equityApprox,
+    });
+    const knobsForPaper = { ...rt.knobs, defaultStake: rtStake.knobs.defaultStake };
+
     setLastSwarm(swarm);
+    setLastConf(swarm.fused.confidence);
     setLedger((prev) => {
       prev.applyPaperStep({
         symbol,
         markQuote: lastQuote,
         action: swarm.fused.action,
         confidence: swarm.fused.confidence,
-        knobs,
+        knobs: knobsForPaper,
         barIndex,
-        maxOpenBars: 12,
+        maxOpenBars: rt.maxOpenBars,
       });
       savePaperLedgerToStorage(prev);
-      const copy = deserializePaperLedger(serializePaperLedger(prev));
-      return copy ?? prev;
+      return deserializePaperLedger(serializePaperLedger(prev)) ?? prev;
     });
     setBarIndex((b) => {
-      const next = b + 1;
-      toast.message(`Bar ${b}: step complete`);
-      return next;
+      toast.message(`Bar ${b}: ${swarm.fused.action}`);
+      return b + 1;
     });
-  }, [ctx, knobs, symbol, lastQuote, barIndex]);
+  }, [ctx, policy, symbol, lastQuote, barIndex, ledger, lastConf]);
 
   const pushSyntheticBar = useCallback(() => {
     const drift = (Math.sin(barIndex / 3) * 0.00015 + (barIndex % 5 === 0 ? 0.00008 : 0)) as number;
     const noise = (Math.random() - 0.5) * 0.00006;
     const r = drift + noise;
-    setReturns((prev) => [...prev.slice(-40), r]);
+    setReturns((prev) => [...prev.slice(-60), r]);
     setLastQuote((q) => Math.max(1e-6, q * (1 + r)));
   }, [barIndex]);
 
-  const savePersonality = useCallback(() => {
-    try {
-      window.localStorage.setItem(
-        PERSONALITY_KEY,
-        JSON.stringify({
-          archetype: clampStr(archetype, MAX_ARCH),
-          personality: clampStr(personality, MAX_PERSONALITY),
-          strategyNotes: clampStr(strategyNotes, MAX_STRATEGY),
-        }),
-      );
-      toast.success('Personality saved locally');
-    } catch {
-      toast.error('Could not save');
-    }
-  }, [archetype, personality, strategyNotes]);
-
   const resetLedger = useCallback(() => {
     clearPaperLedgerStorage();
-    const L = new PaperLedger(10_000);
-    setLedger(L);
+    const cash = policy.deployment.paperStartingCash;
+    setLedger(new PaperLedger(cash));
     setBarIndex(0);
+    setLastConf(0.45);
     toast.message('Paper ledger reset');
+  }, [policy.deployment.paperStartingCash]);
+
+  const onRandomizePolicy = useCallback(() => {
+    setPolicy(randomAgentPolicy());
+    toast.message('Random policy applied — save if you want to keep it');
   }, []);
 
   return (
     <div className="min-h-screen pt-16 sm:pt-20 pb-8 px-4 sm:px-[8%] lg:px-[12%] relative" style={{ background: BG }}>
       <div className="relative z-10 space-y-6">
         <div className="flex flex-wrap items-center gap-3 justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-white/50 hover:text-white/80"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Command center
-            </Link>
-          </div>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1 text-[11px] font-mono uppercase tracking-wider text-white/50 hover:text-white/80"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Command center
+          </Link>
           <div className="flex items-center gap-2 text-white/60 text-[11px] font-mono">
             <Bot className="w-4 h-4" style={{ color: GOLD }} />
-            Paper + swarm (no live OAuth)
+            {policy.identity.displayName}
           </div>
         </div>
 
         <div>
           <h1 className="text-lg font-black font-mono text-white tracking-tight">PAPER SWARM LAB</h1>
           <p className="text-[11px] font-mono mt-0.5 text-white/35 max-w-2xl">
-            Seven deterministic analyzers fuse into CALL / PUT / HOLD. Ledger is simulated cash — tune knobs to match your Command Center Deriv settings, then export behavior via localStorage.
+            Configure agent policy (wizard), then run the swarm against Deriv-style returns. Stakes and timing follow your money approach, patience, and
+            personality.
           </p>
         </div>
 
         <AgentDataFlow animatePipeline={false} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div
-            className="border border-white/[0.08] rounded-lg p-4 space-y-3"
-            style={{ background: 'rgba(18,18,26,0.5)' }}
-          >
-            <h2 className="text-xs font-bold font-mono uppercase tracking-wider" style={{ color: GOLD }}>
-              Personal agent
-            </h2>
-            <label className="block text-[10px] uppercase text-white/35">Archetype (max {MAX_ARCH})</label>
-            <input
-              value={archetype}
-              onChange={(e) => setArchetype(clampStr(e.target.value, MAX_ARCH))}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-sm text-white font-mono"
-            />
-            <label className="block text-[10px] uppercase text-white/35">Personality (max {MAX_PERSONALITY})</label>
-            <textarea
-              value={personality}
-              onChange={(e) => setPersonality(clampStr(e.target.value, MAX_PERSONALITY))}
-              rows={3}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-xs text-white/90"
-            />
-            <label className="block text-[10px] uppercase text-white/35">Strategy notes (max {MAX_STRATEGY})</label>
-            <textarea
-              value={strategyNotes}
-              onChange={(e) => setStrategyNotes(clampStr(e.target.value, MAX_STRATEGY))}
-              rows={2}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1.5 text-xs text-white/90"
-            />
-            <button
-              type="button"
-              onClick={savePersonality}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono uppercase bg-amber-500/20 border border-amber-500/40 text-amber-200 hover:bg-amber-500/30"
-            >
-              <Save className="w-3.5 h-3.5" />
-              Save profile
-            </button>
-          </div>
+        <AgentPolicyWizard
+          policy={policy}
+          setPolicy={setPolicy}
+          step={wizardStep}
+          setStep={setWizardStep}
+          onSave={onWizardSave}
+          onRandomize={onRandomizePolicy}
+        />
 
-          <div
-            className="border border-white/[0.08] rounded-lg p-4 space-y-3"
-            style={{ background: 'rgba(18,18,26,0.5)' }}
-          >
+        <div className="border border-white/[0.08] rounded-lg p-3 font-mono text-[10px] text-white/50" style={{ background: 'rgba(10,12,18,0.6)' }}>
+          <span className="text-amber-500/80">Derived runtime</span>
+          {' · '}
+          stake {derivedPreview.knobs.defaultStake} / max {derivedPreview.knobs.maxStake} · minConf {derivedPreview.knobs.minConfidenceToTrade.toFixed(2)} ·
+          riskBias {derivedPreview.knobs.riskBias.toFixed(2)} · maxBars {derivedPreview.maxOpenBars} · lookback {derivedPreview.returnsLookback}
+          <button type="button" onClick={savePolicy} className="ml-3 text-amber-400/90 underline-offset-2 hover:underline">
+            Save policy now
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="border border-white/[0.08] rounded-lg p-4 space-y-3" style={{ background: 'rgba(18,18,26,0.5)' }}>
             <h2 className="text-xs font-bold font-mono uppercase tracking-wider" style={{ color: GOLD }}>
-              Knobs (mirror dashboard)
+              Market sim
             </h2>
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-              <label className="text-white/40 col-span-2">Symbol</label>
-              <input
-                value={symbol}
-                onChange={(e) => setSymbol(clampStr(e.target.value.replace(/[^\w]/g, ''), 24))}
-                className="col-span-2 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white"
-              />
-              <Field
-                label="Default stake"
-                value={knobs.defaultStake}
-                onChange={(n) => setKnobs((k) => ({ ...k, defaultStake: n }))}
-              />
-              <Field label="Max stake" value={knobs.maxStake} onChange={(n) => setKnobs((k) => ({ ...k, maxStake: n }))} />
-              <Field
-                label="Min conf"
-                value={knobs.minConfidenceToTrade}
-                onChange={(n) => setKnobs((k) => ({ ...k, minConfidenceToTrade: n }))}
-                step={0.01}
-              />
-              <Field label="Risk bias" value={knobs.riskBias} onChange={(n) => setKnobs((k) => ({ ...k, riskBias: n }))} step={0.05} />
-            </div>
-            <div className="flex flex-wrap gap-2 pt-2">
+            <p className="text-[10px] text-white/35 font-mono">Symbol {symbol}</p>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => {
                   pushSyntheticBar();
-                  toast.message('Synthetic bar pushed');
+                  toast.message('Synthetic bar');
                 }}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-[11px] font-mono uppercase border border-white/10 text-white/80 hover:bg-white/5"
               >
@@ -255,38 +237,11 @@ export function PaperAgentClient() {
               </button>
             </div>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TerminalSwarmPanel swarm={lastSwarm} />
           <PaperStatePanel ledger={ledger} lastQuote={lastQuote} barIndex={barIndex} />
         </div>
-      </div>
-    </div>
-  );
-}
 
-function Field({
-  label,
-  value,
-  onChange,
-  step = 1,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  step?: number;
-}) {
-  return (
-    <div className="col-span-1">
-      <div className="text-white/40 mb-0.5">{label}</div>
-      <input
-        type="number"
-        step={step}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white"
-      />
+        <TerminalSwarmPanel swarm={lastSwarm} />
+      </div>
     </div>
   );
 }
@@ -351,7 +306,7 @@ function PaperStatePanel({
               .map((p) => (
                 <div key={p.id} className="flex justify-between gap-2">
                   <span>
-                    {p.side} {p.symbol} st={p.stake}
+                    {p.side} st={p.stake}
                   </span>
                   <span className={p.status === 'open' ? 'text-emerald-400/90' : 'text-white/45'}>{p.status}</span>
                   {p.pnl != null && <span className="text-white/50">pnl {p.pnl.toFixed(2)}</span>}

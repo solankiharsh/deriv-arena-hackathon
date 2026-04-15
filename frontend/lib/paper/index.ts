@@ -10,3 +10,4 @@ export {
   serializePaperLedger,
   STORAGE_KEY,
 } from './storage';
+export { closedPositionsChronological, recentWinRate, winStreakFromLedger } from './tradeStats';
