@@ -4,6 +4,7 @@ const GOLD = '#E8B45E';
 const BG   = '#07090F';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuthStore } from '@/store/authStore';
 import { getMyAgent } from '@/lib/api';
@@ -70,11 +71,17 @@ export default function DashboardPage() {
 
             <div className="relative z-10">
                 {/* Page Header */}
-                <div className="flex items-center gap-4 mb-6">
+                <div className="flex flex-wrap items-center gap-4 mb-6 justify-between">
                     <div>
                         <h1 className="text-lg font-black font-mono text-white tracking-tight">COMMAND CENTER</h1>
                         <p className="text-[11px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your agent&apos;s data ingestion pipeline — each source feeds real-time signals into your strategy.</p>
                     </div>
+                    <Link
+                        href="/dashboard/paper-agent"
+                        className="text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-amber-500/35 text-amber-200/90 hover:bg-amber-500/10 transition-colors"
+                    >
+                        Paper swarm lab →
+                    </Link>
                 </div>
 
                 <div className="space-y-6 animate-arena-reveal">

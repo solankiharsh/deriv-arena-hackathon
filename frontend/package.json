@@ -11,6 +11,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "paper-agent-once": "tsx scripts/paper-agent-once.ts",
     "research:auto": "tsx research/auto-improve.ts"
   },
   "keywords": [],
