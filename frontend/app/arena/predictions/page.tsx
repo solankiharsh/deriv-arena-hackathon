@@ -306,31 +306,71 @@ export default function PredictionArenaPage() {
     }).catch(() => {});
   }, []);
 
-  /* WebSocket */
+  /* WebSocket — cleanup must not rely on async-populated arrays (that leaks intervals + listeners). */
   useEffect(() => {
-    const unsubs: Array<() => void> = [];
+    let cancelled = false;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    const unsubscribers: Array<() => void> = [];
+
     (async () => {
       try {
         await connectWebSocket();
+        if (cancelled) return;
         const ws = getWebSocketManager();
         setWsConn(ws.isConnected());
-        const ci = setInterval(() => setWsConn(ws.isConnected()), 3_000);
-        unsubs.push(() => clearInterval(ci));
-        unsubs.push(ws.onPredictionSignal((ev) => {
-          const d = ev.data as PredictionSignalEvent; const ts = Date.now();
-          setTape((p) => [{ kind: 'signal' as const, ts, data: d }, ...p].slice(0, 40));
-          setNewIds((p) => { const n = new Set(p).add(ts); setTimeout(() => setNewIds((q) => { const r = new Set(q); r.delete(ts); return r; }), 600); return n; });
-          setMarkets((p) => p.map((m) => m.ticker !== d.ticker ? m : { ...m, yesPrice: Math.max(0.01, Math.min(0.99, m.yesPrice + (d.side === 'YES' ? 0.005 : -0.005))) }));
-        }));
-        unsubs.push(ws.onPredictionConsensus((ev) => {
-          const d = ev.data as PredictionConsensusEvent; const ts = Date.now();
-          setTape((p) => [{ kind: 'consensus' as const, ts, data: d }, ...p].slice(0, 40));
-          setNewIds((p) => { const n = new Set(p).add(ts); setTimeout(() => setNewIds((q) => { const r = new Set(q); r.delete(ts); return r; }), 600); return n; });
-          setStats((p) => p ? { ...p, totalPredictions: p.totalPredictions + d.participants } : p);
-        }));
-      } catch { setWsConn(false); }
+        pollId = setInterval(() => {
+          if (!cancelled) setWsConn(ws.isConnected());
+        }, 3_000);
+        unsubscribers.push(
+          ws.onPredictionSignal((ev) => {
+            const d = ev.data as PredictionSignalEvent;
+            const ts = Date.now();
+            setTape((p) => [{ kind: 'signal' as const, ts, data: d }, ...p].slice(0, 40));
+            setNewIds((p) => {
+              const n = new Set(p).add(ts);
+              setTimeout(() => setNewIds((q) => {
+                const r = new Set(q);
+                r.delete(ts);
+                return r;
+              }), 600);
+              return n;
+            });
+            setMarkets((p) =>
+              p.map((m) =>
+                m.ticker !== d.ticker
+                  ? m
+                  : { ...m, yesPrice: Math.max(0.01, Math.min(0.99, m.yesPrice + (d.side === 'YES' ? 0.005 : -0.005))) },
+              ),
+            );
+          }),
+        );
+        unsubscribers.push(
+          ws.onPredictionConsensus((ev) => {
+            const d = ev.data as PredictionConsensusEvent;
+            const ts = Date.now();
+            setTape((p) => [{ kind: 'consensus' as const, ts, data: d }, ...p].slice(0, 40));
+            setNewIds((p) => {
+              const n = new Set(p).add(ts);
+              setTimeout(() => setNewIds((q) => {
+                const r = new Set(q);
+                r.delete(ts);
+                return r;
+              }), 600);
+              return n;
+            });
+            setStats((p) => (p ? { ...p, totalPredictions: p.totalPredictions + d.participants } : p));
+          }),
+        );
+      } catch {
+        if (!cancelled) setWsConn(false);
+      }
     })();
-    return () => unsubs.forEach((u) => u());
+
+    return () => {
+      cancelled = true;
+      if (pollId != null) clearInterval(pollId);
+      unsubscribers.forEach((u) => u());
+    };
   }, []);
 
   useEffect(() => { if (tapeRef.current) tapeRef.current.scrollTop = 0; }, [tape]);
