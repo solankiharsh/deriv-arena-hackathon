@@ -43,6 +43,17 @@ export default function GameInstructionsOverlay({
     return () => clearInterval(timer);
   }, [dismiss]);
 
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.dispatchEvent(new Event('app-scroll-lock'));
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      window.dispatchEvent(new Event('app-scroll-unlock'));
+    };
+  }, []);
+
   return (
     <AnimatePresence>
       {visible && (
@@ -51,7 +62,7 @@ export default function GameInstructionsOverlay({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm"
           onClick={dismiss}
         >
           <motion.div
@@ -59,7 +70,7 @@ export default function GameInstructionsOverlay({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="relative max-w-lg w-full mx-4 bg-card border border-border rounded-2xl overflow-hidden shadow-2xl"
+            className="relative my-6 max-w-lg w-full mx-auto bg-card border border-border rounded-2xl overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Countdown bar */}
@@ -80,7 +91,7 @@ export default function GameInstructionsOverlay({
               <X className="w-4 h-4" />
             </button>
 
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 max-h-[min(70vh,42rem)] overflow-y-auto overscroll-contain touch-pan-y">
               {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-accent-primary/10 border border-accent-primary/20

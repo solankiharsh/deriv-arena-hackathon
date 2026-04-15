@@ -125,6 +125,7 @@ export default function PlayPage() {
   const highestThresholdShown = useRef(0);
   const endGameNudgeShown = useRef(false);
   const prevStatusRef = useRef<string | undefined>(undefined);
+  const hasPlayedInitialLiveSfxRef = useRef(false);
   const soundEnabled = useSettingsStore((s) => s.arenaSoundEnabled);
   const setSoundEnabled = useSettingsStore((s) => s.setArenaSoundEnabled);
 
@@ -177,17 +178,43 @@ export default function PlayPage() {
   }, [user, instance, joined, instanceId, loadInstance]);
 
   useEffect(() => {
+    sfx.prime();
+  }, []);
+
+  useEffect(() => {
     const cur = instance?.status;
     const prev = prevStatusRef.current;
     prevStatusRef.current = cur;
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[play] status observed', { prev, cur, instanceId });
+    }
+
     if (cur === 'live' && prev && prev !== 'live') {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[play] triggering game_start sfx', { prev, cur, instanceId });
+      }
       sfx.play('game_start');
     }
     if (cur === 'finished' && prev && prev !== 'finished') {
       sfx.play('game_end');
     }
   }, [instance?.status]);
+
+  useEffect(() => {
+    if (instance?.status !== 'live' || hasPlayedInitialLiveSfxRef.current) return;
+    hasPlayedInitialLiveSfxRef.current = true;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[play] triggering initial live game_start sfx', { instanceId });
+    }
+
+    const timeout = window.setTimeout(() => {
+      sfx.play('game_start');
+    }, 150);
+
+    return () => window.clearTimeout(timeout);
+  }, [instance?.status, instanceId]);
 
   useEffect(() => {
     if (instance?.status === 'live' && !instructionsDismissed) {
@@ -209,6 +236,7 @@ export default function PlayPage() {
 
   const handleJoin = async () => {
     try {
+      sfx.prime();
       await arenaApi.instances.join(instanceId);
       setJoined(true);
       loadInstance();
@@ -219,6 +247,7 @@ export default function PlayPage() {
 
   const handleStart = async () => {
     try {
+      sfx.prime();
       await arenaApi.instances.start(instanceId);
       loadInstance();
     } catch (err) {
@@ -338,7 +367,14 @@ export default function PlayPage() {
               {instance.player_count}
             </span>
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={() => {
+                const nextEnabled = !soundEnabled;
+                setSoundEnabled(nextEnabled);
+                if (nextEnabled) {
+                  sfx.prime();
+                  sfx.play('ui_click');
+                }
+              }}
               className="btn-ghost text-xs p-1.5"
               title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
             >

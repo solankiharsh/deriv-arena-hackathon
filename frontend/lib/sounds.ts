@@ -53,10 +53,18 @@ type HowlCtor = new (opts: {
   volume: number;
   preload: boolean;
 }) => HowlLike;
+type HowlerGlobalLike = {
+  ctx?: {
+    state?: string;
+    resume?: () => Promise<void>;
+  };
+};
 
 let HowlClass: HowlCtor | null = null;
+let HowlerGlobal: HowlerGlobalLike | null = null;
 let howlerLoading: Promise<void> | null = null;
 const cache = new Map<SfxName, HowlLike>();
+let unlockListenersInstalled = false;
 
 function ensureHowler(): Promise<void> {
   if (HowlClass) return Promise.resolve();
@@ -65,8 +73,24 @@ function ensureHowler(): Promise<void> {
 
   howlerLoading = import('howler').then((mod) => {
     HowlClass = mod.Howl as unknown as HowlCtor;
+    HowlerGlobal = (mod as { Howler?: HowlerGlobalLike }).Howler ?? null;
   });
   return howlerLoading;
+}
+
+function installUnlockListeners() {
+  if (unlockListenersInstalled || typeof window === 'undefined') return;
+  unlockListenersInstalled = true;
+
+  const unlock = () => {
+    void ensureHowler().then(() => {
+      void HowlerGlobal?.ctx?.resume?.().catch(() => {});
+    });
+  };
+
+  window.addEventListener('pointerdown', unlock, { passive: true });
+  window.addEventListener('keydown', unlock, { passive: true });
+  window.addEventListener('touchstart', unlock, { passive: true });
 }
 
 function getOrCreate(name: SfxName): HowlLike | null {
@@ -77,7 +101,7 @@ function getOrCreate(name: SfxName): HowlLike | null {
       src: [SOUND_FILES[name]],
       format: ['wav'],
       volume: VOLUMES[name] ?? 0.5,
-      preload: false,
+      preload: true,
     });
     cache.set(name, howl);
   }
@@ -85,15 +109,39 @@ function getOrCreate(name: SfxName): HowlLike | null {
 }
 
 export const sfx = {
+  prime() {
+    if (typeof window === 'undefined') return;
+    installUnlockListeners();
+    void ensureHowler().then(() => {
+      void HowlerGlobal?.ctx?.resume?.().catch(() => {});
+      getOrCreate('game_start');
+      getOrCreate('trade_place');
+      getOrCreate('ui_click');
+    });
+  },
   play(name: SfxName) {
     if (typeof window === 'undefined') return;
+    installUnlockListeners();
     const enabled = useSettingsStore.getState().arenaSoundEnabled;
-    if (!enabled) return;
+    if (!enabled) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[sfx] skipped because sound is disabled', { name });
+      }
+      return;
+    }
 
     ensureHowler().then(() => {
       try {
-        getOrCreate(name)?.play();
-      } catch {
+        void HowlerGlobal?.ctx?.resume?.().catch(() => {});
+        const sound = getOrCreate(name);
+        const playId = sound?.play();
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[sfx] play requested', { name, playId: playId ?? null });
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[sfx] play failed', { name, error });
+        }
         // Audio failures must not break gameplay
       }
     });
