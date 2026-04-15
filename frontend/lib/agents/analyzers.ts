@@ -19,12 +19,29 @@ function stddev(xs: number[]): number {
   return Math.sqrt(v);
 }
 
+/** Mean return in units of its sample stdev — works for per-tick micro-returns. */
+function zScoreMean(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = mean(xs);
+  const sd = stddev(xs);
+  if (sd < 1e-12 || !Number.isFinite(sd)) return 0;
+  return m / sd;
+}
+
 export function analyzeSentiment(ctx: MarketContext): AnalyzerResult {
-  const s = clamp(ctx.sentimentPlaceholder, -1, 1);
+  const policyS = clamp(ctx.sentimentPlaceholder, -1, 1);
+  const w = ctx.returns.slice(-8);
+  const tape =
+    w.length >= 3 ? clamp(Math.tanh(zScoreMean(w) * 0.85), -1, 1) : 0;
+  const score = clamp(0.35 * policyS + 0.65 * tape, -1, 1);
+  const rationale =
+    w.length < 3
+      ? 'Thin tick history; sentiment from policy only.'
+      : `Policy tilt ${policyS.toFixed(2)} + tick-flow tilt ${tape.toFixed(2)} (z of mean) → ${score.toFixed(2)}.`;
   return {
     id: 'sentiment',
-    score: s,
-    rationale: s === 0 ? 'No sentiment signal (neutral).' : `Sentiment placeholder ${s.toFixed(2)}.`,
+    score,
+    rationale,
   };
 }
 
@@ -39,10 +56,22 @@ export function analyzeLiquidity(ctx: MarketContext): AnalyzerResult {
       rationale: `Spread ${(spread * 100).toFixed(3)}% of mid → liquidity score ${score.toFixed(2)}.`,
     };
   }
+  const r = ctx.returns.slice(-32);
+  if (r.length < 4) {
+    return {
+      id: 'liquidity',
+      score: 0.15,
+      rationale: 'No L2 on public ticks; waiting for more prints for microstructure proxy.',
+    };
+  }
+  const tickVol = stddev(r);
+  const ref = Math.max(1e-8, mean(r.map((x) => Math.abs(x))) * 2.5);
+  const choppiness = Math.min(2.5, tickVol / ref);
+  const score = clamp(0.72 - choppiness * 0.55, -1, 1);
   return {
     id: 'liquidity',
-    score: 0,
-    rationale: 'No bid/ask; liquidity neutral.',
+    score,
+    rationale: `Synthetic index: tick σ ${tickVol.toExponential(2)} vs typical |r| scale → execution friction proxy ${score.toFixed(2)}.`,
   };
 }
 
@@ -60,11 +89,12 @@ export function analyzeRisk(ctx: MarketContext, knobs: AgentProfileKnobs): Analy
 export function analyzeProbability(ctx: MarketContext): AnalyzerResult {
   const window = ctx.returns.slice(-8);
   const m = mean(window);
-  const score = clamp(Math.sign(m) * Math.min(1, Math.abs(m) * 120), -1, 1);
+  const z = zScoreMean(window);
+  const score = clamp(Math.sign(z) * Math.min(1, Math.abs(z) * 0.42), -1, 1);
   return {
     id: 'probability',
     score,
-    rationale: `Short-horizon drift ${m.toFixed(5)} → probability tilt ${score.toFixed(2)}.`,
+    rationale: `8-tick mean ${m.toExponential(2)} (z≈${z.toFixed(2)}) → probability tilt ${score.toFixed(2)}.`,
   };
 }
 
@@ -74,34 +104,35 @@ export function analyzeMomentum(ctx: MarketContext): AnalyzerResult {
     return { id: 'momentum', score: 0, rationale: 'No returns; momentum flat.' };
   }
   const m = mean(window);
-  const score = clamp(Math.sign(m) * Math.min(1, Math.abs(m) * 100), -1, 1);
+  const z = zScoreMean(window);
+  const score = clamp(Math.sign(z) * Math.min(1, Math.abs(z) * 0.45), -1, 1);
   return {
     id: 'momentum',
     score,
-    rationale: `5-bar mean return ${m.toFixed(5)} → momentum ${score.toFixed(2)}.`,
+    rationale: `5-tick mean ${m.toExponential(2)} (z≈${z.toFixed(2)}) → momentum ${score.toFixed(2)}.`,
   };
 }
 
 export function analyzeRegime(ctx: MarketContext): AnalyzerResult {
-  const vol = stddev(ctx.returns.slice(-20));
-  const sum = ctx.returns.slice(-10).reduce((a, b) => a + b, 0);
-  if (vol > 0.004) {
+  const ret = ctx.returns;
+  const volShort = stddev(ret.slice(-8));
+  const volLong = stddev(ret.slice(-40)) || 1e-12;
+  const ratio = volShort / volLong;
+  if (ratio > 1.75 && volShort > 1e-9 && ret.length >= 12) {
     return {
       id: 'regime',
-      score: clamp(-0.35 - knobsFromCtx(vol), -1, 0.2),
-      rationale: 'High micro-vol regime; favor standing aside.',
+      score: clamp(-0.38 - Math.min(0.5, (ratio - 1.75) * 0.45), -1, 0.18),
+      rationale: `Tick vol spike: short/long σ ratio ${ratio.toFixed(2)} (${volShort.toExponential(1)} vs ${volLong.toExponential(1)}).`,
     };
   }
-  const score = clamp(Math.sign(sum) * Math.min(1, Math.abs(sum) * 60), -1, 1);
+  const w10 = ret.slice(-10);
+  const z = zScoreMean(w10);
+  const score = clamp(Math.sign(z) * Math.min(1, Math.abs(z) * 0.4), -1, 1);
   return {
     id: 'regime',
     score,
-    rationale: `Trend regime (10-bar sum ${sum.toFixed(5)}) → ${score.toFixed(2)}.`,
+    rationale: `10-tick drift z≈${z.toFixed(2)} (σ mix stable) → regime ${score.toFixed(2)}.`,
   };
-}
-
-function knobsFromCtx(vol: number): number {
-  return Math.min(0.5, vol * 40);
 }
 
 export function analyzeExecutionGuard(ctx: MarketContext, knobs: AgentProfileKnobs): AnalyzerResult {

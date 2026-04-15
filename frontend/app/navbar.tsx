@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Bot } from 'lucide-react';
+import { Swords, Trophy, LayoutList, Menu, X, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import UserAuthButton from '@/components/auth/UserAuthButton';
@@ -40,7 +40,6 @@ export default function Navbar() {
     { href: '/arena', label: 'Arena', Icon: Swords },
     { href: '/competitions', label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard', label: 'Leaderboard', Icon: Trophy },
-    { href: '/create', label: 'Create', Icon: PlusCircle },
     { href: '/dashboard/paper-agent', label: 'Paper agent', Icon: Bot },
   ];
 

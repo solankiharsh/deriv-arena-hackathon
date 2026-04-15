@@ -27,6 +27,15 @@ describe('runAllAnalyzers', () => {
     const g = runAllAnalyzers(ctx, DEFAULT_KNOBS).find((a) => a.id === 'executionGuard');
     expect(g?.score).toBeLessThan(0);
   });
+
+  it('probability/momentum use z-scores so tick-scale returns are not all flat', () => {
+    const w = Array.from({ length: 14 }, (_, i) => 0.000012 + i * 8e-7);
+    const ctx = marketContextFixture({ returns: w });
+    const out = runAllAnalyzers(ctx, DEFAULT_KNOBS);
+    const prob = out.find((a) => a.id === 'probability');
+    const mom = out.find((a) => a.id === 'momentum');
+    expect(Math.abs(prob?.score ?? 0) + Math.abs(mom?.score ?? 0)).toBeGreaterThan(0.02);
+  });
 });
 
 describe('fuseScores', () => {
