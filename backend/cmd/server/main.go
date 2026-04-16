@@ -94,14 +94,23 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 	
-	// CORS (explicit origins; wildcard ports are not reliably supported)
+	// CORS — read allowed origins from env (comma-separated) and merge with defaults.
+	corsOrigins := []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+		"http://localhost:3001",
+		"http://127.0.0.1:3001",
+	}
+	if extra := os.Getenv("CORS_ORIGINS"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				corsOrigins = append(corsOrigins, o)
+			}
+		}
+	}
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{
-			"http://localhost:3000",
-			"http://127.0.0.1:3000",
-			"http://localhost:3001",
-			"http://127.0.0.1:3001",
-		},
+		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
