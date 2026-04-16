@@ -2,13 +2,24 @@
 
 const GOLD = '#E8B45E';
 
-import { useState, useCallback } from 'react';
-import { Settings, Shield, TrendingUp, Save, Loader2, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { useArenaFeedPreferences } from '@/hooks/useArenaFeedPreferences';
+import { Bot, Settings, Shield, TrendingUp, Save, Loader2, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { saveAgentConfig } from '@/lib/api';
 import { OnboardingChecklist } from '@/components/arena/OnboardingChecklist';
 import type { OnboardingTask } from '@/lib/types';
+import type { AgentPolicy } from '@/lib/agents';
+import { loadAgentPolicyFromStorage, randomAgentPolicy, saveAgentPolicyToStorage } from '@/lib/agents';
+import { AGENT_POLICY_UI, DERIV_MARKET_PRESET_GROUPS } from '@/lib/agents/agentPolicyCopy';
+import {
+  AgentPolicyIdentityFields,
+  AgentPolicyLaunchFields,
+  AgentPolicyPreferencesFields,
+  AgentPolicyRiskFields,
+  AgentPolicyTradingFields,
+} from '@/components/dashboard/AgentPolicyStepFields';
 
 // ── Section Wrapper ──────────────────────────────────────────────
 
@@ -105,6 +116,25 @@ function SliderField({
 
 export function AgentConfigPanel() {
     const { agent, onboardingTasks, onboardingProgress } = useAuthStore();
+    const { selectedMarket, enabledFeeds, setSelectedMarket, toggleFeed } = useArenaFeedPreferences();
+
+    const [policy, setPolicy] = useState<AgentPolicy>(() => ({ ...loadAgentPolicyFromStorage() }));
+
+    useEffect(() => {
+        if (policy.preferences.primarySymbol === selectedMarket) return;
+        setSelectedMarket(policy.preferences.primarySymbol);
+    }, [policy.preferences.primarySymbol, selectedMarket, setSelectedMarket]);
+
+    const selectMarket = useCallback(
+        (market: string) => {
+            setSelectedMarket(market);
+            setPolicy((p) => ({
+                ...p,
+                preferences: { ...p.preferences, primarySymbol: market.replace(/[^\w]/g, '').slice(0, 32) },
+            }));
+        },
+        [setSelectedMarket],
+    );
 
     // Deriv trading params (configurable)
     const [stakeAmount, setStakeAmount] = useState(10);
@@ -119,22 +149,13 @@ export function AgentConfigPanel() {
         return 'EXTREME';
     };
 
-    // Market & Contract selection
-    const [selectedMarket, setSelectedMarket] = useState('1HZ100V'); // Volatility 100
+    // Contract selection (persisted via saveAgentConfig; market + feeds use Command Center localStorage)
     const [enabledContracts, setEnabledContracts] = useState({
         ACCU: true,
         MULTUP: false,
         MULTDOWN: false,
         CALL: true,
         PUT: false,
-    });
-
-    // Data source toggles (from AgentDataFlow)
-    const [enabledFeeds, setEnabledFeeds] = useState({
-        deriv_ticks: true,
-        sentiment: true,
-        pattern: true,
-        partner: false,
     });
 
     // Persist trading config to backend
@@ -150,17 +171,25 @@ export function AgentConfigPanel() {
                 enabledContracts,
                 enabledFeeds,
             });
-            toast.success('Agent config saved');
-        } catch (err: any) {
-            toast.error(err?.response?.data?.error || err?.message || 'Failed to save config');
+            saveAgentPolicyToStorage(policy);
+            toast.success('Agent config and trading persona saved', {
+                description:
+                    'Data Feeds + Market apply to this browser immediately. Use the center Paper swarm column (Arena / Command Center) to run steps on ticks or the simulator.',
+                duration: 8000,
+            });
+        } catch (err: unknown) {
+            saveAgentPolicyToStorage(policy);
+            const msg =
+                err instanceof Error
+                    ? err.message
+                    : typeof err === 'object' && err !== null && 'message' in err
+                      ? String((err as { message: unknown }).message)
+                      : 'Failed to save config';
+            toast.error(`${msg} — trading persona still saved in this browser.`);
         } finally {
             setSavingConfig(false);
         }
-    }, [stakeAmount, targetPayout, riskScore, selectedMarket, enabledContracts, enabledFeeds]);
-
-    const toggleFeed = (key: keyof typeof enabledFeeds) => {
-        setEnabledFeeds(prev => ({ ...prev, [key]: !prev[key] }));
-    };
+    }, [stakeAmount, targetPayout, riskScore, selectedMarket, enabledContracts, enabledFeeds, policy]);
 
     const toggleContract = (key: keyof typeof enabledContracts) => {
         setEnabledContracts(prev => ({ ...prev, [key]: !prev[key] }));
@@ -179,22 +208,125 @@ export function AgentConfigPanel() {
             <div className="p-3 space-y-3">
                 {/* Deriv Market Selection */}
                 <ConfigSection title="Market" icon={TrendingUp}>
-                    <p className="text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                        Select the synthetic index your agent will trade on.
+                    <p className="text-[10px] mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        {AGENT_POLICY_UI.marketBlurb}
                     </p>
-                    {['1HZ100V', '1HZ75V', '1HZ50V', 'R_10', 'R_25', 'R_50', 'R_75', 'R_100'].map((market) => (
-                        <button
-                            key={market}
-                            onClick={() => setSelectedMarket(market)}
-                            className={`w-full py-1.5 px-2 text-xs font-mono text-left border rounded transition-colors ${
-                                selectedMarket === market 
-                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' 
-                                    : 'bg-white/[0.02] border-white/[0.06] text-white/60 hover:bg-white/[0.04]'
-                            }`}
+                    <p className="text-[10px] mb-2 leading-relaxed" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                        {AGENT_POLICY_UI.marketFamiliesBlurb}
+                    </p>
+                    <div className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">Volatility</div>
+                    <div className="space-y-1 mb-3">
+                        {(['1HZ100V', '1HZ75V', '1HZ50V'] as const).map((market) => (
+                            <button
+                                key={market}
+                                onClick={() => selectMarket(market)}
+                                className={`w-full py-1.5 px-2 text-xs font-mono text-left border rounded transition-colors ${
+                                    selectedMarket === market
+                                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                                        : 'bg-white/[0.02] border-white/[0.06] text-white/60 hover:bg-white/[0.04]'
+                                }`}
+                            >
+                                {market}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">Jump</div>
+                    <div className="space-y-1">
+                        {(['R_10', 'R_25', 'R_50', 'R_75', 'R_100'] as const).map((market) => (
+                            <button
+                                key={market}
+                                onClick={() => selectMarket(market)}
+                                className={`w-full py-1.5 px-2 text-xs font-mono text-left border rounded transition-colors ${
+                                    selectedMarket === market
+                                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                                        : 'bg-white/[0.02] border-white/[0.06] text-white/60 hover:bg-white/[0.04]'
+                                }`}
+                            >
+                                {market}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[9px] mt-3 mb-2 leading-relaxed" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                        More Deriv underlyings (same WebSocket tick stream; symbol must exist for your app_id / account).
+                        See{' '}
+                        <a
+                            href="https://developers.deriv.com/docs/data/ticks/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-200/70 hover:underline"
                         >
-                            {market}
-                        </button>
+                            Deriv ticks docs
+                        </a>{' '}
+                        and{' '}
+                        <a
+                            href="https://developers.deriv.com/docs/data/active-symbols/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-amber-200/70 hover:underline"
+                        >
+                            active symbols
+                        </a>
+                        .
+                    </p>
+                    {DERIV_MARKET_PRESET_GROUPS.map((g) => (
+                        <div key={g.label} className="mb-3 last:mb-0">
+                            <div className="text-[9px] font-mono uppercase tracking-wider text-white/30 mb-1">{g.label}</div>
+                            <div className="flex flex-wrap gap-1">
+                                {g.symbols.map((sym) => (
+                                    <button
+                                        key={sym}
+                                        type="button"
+                                        onClick={() => selectMarket(sym)}
+                                        className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors ${
+                                            selectedMarket === sym
+                                                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                                                : 'bg-white/[0.03] border-white/[0.08] text-white/55 hover:bg-white/[0.06]'
+                                        }`}
+                                    >
+                                        {sym}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     ))}
+                </ConfigSection>
+
+                <ConfigSection title="Trading persona (paper)" icon={Bot} defaultOpen={false}>
+                    <p className="text-[10px] mb-3 leading-relaxed" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                        {AGENT_POLICY_UI.arenaPersonaIntro}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setPolicy(randomAgentPolicy());
+                            toast.message('Random persona — Deploy Agent to persist');
+                        }}
+                        className="text-[10px] font-mono uppercase px-2 py-1 rounded border border-white/15 text-white/50 hover:bg-white/5 mb-4"
+                    >
+                        {AGENT_POLICY_UI.randomize}
+                    </button>
+                    <div className="space-y-5 max-h-[min(70vh,520px)] overflow-y-auto pr-1">
+                        <div>
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-white/45 mb-2">Identity</div>
+                            <AgentPolicyIdentityFields policy={policy} setPolicy={setPolicy} />
+                        </div>
+                        <div className="border-t border-white/[0.06] pt-4">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-white/45 mb-2">Trading style</div>
+                            <AgentPolicyTradingFields policy={policy} setPolicy={setPolicy} />
+                        </div>
+                        <div className="border-t border-white/[0.06] pt-4">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-white/45 mb-2">Risk & paper bankroll</div>
+                            <AgentPolicyRiskFields policy={policy} setPolicy={setPolicy} />
+                        </div>
+                        <div className="border-t border-white/[0.06] pt-4">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-white/45 mb-2">Preferences</div>
+                            <AgentPolicyPreferencesFields policy={policy} setPolicy={setPolicy} />
+                        </div>
+                        <div className="border-t border-white/[0.06] pt-4">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-white/45 mb-2">Launch</div>
+                            <AgentPolicyLaunchFields policy={policy} setPolicy={setPolicy} />
+                        </div>
+                    </div>
                 </ConfigSection>
 
                 {/* Contract Types */}
@@ -272,7 +404,7 @@ export function AgentConfigPanel() {
                         style={{ background: 'rgba(232,180,94,0.08)', borderColor: 'rgba(232,180,94,0.3)', color: GOLD }}
                     >
                         {savingConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                        {savingConfig ? 'Deploying...' : 'Deploy Agent'}
+                        {savingConfig ? 'Saving…' : 'Deploy Agent'}
                     </button>
                 </ConfigSection>
 
@@ -296,7 +428,7 @@ export function AgentConfigPanel() {
                                 <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{desc}</span>
                             </div>
                             <button
-                                onClick={() => toggleFeed(key as keyof typeof enabledFeeds)}
+                                onClick={() => toggleFeed(key as 'deriv_ticks' | 'sentiment' | 'pattern' | 'partner')}
                                 className={`relative w-8 h-4.5 rounded-full transition-colors cursor-pointer ${
                                     enabledFeeds[key as keyof typeof enabledFeeds]
                                     ? 'bg-emerald-500/30'

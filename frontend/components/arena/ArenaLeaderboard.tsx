@@ -4,7 +4,12 @@ import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Crown, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { useLeaderboard } from '@/hooks/useArenaData';
+import { usePaperLedgerLive } from '@/hooks/usePaperLedgerLive';
+import { useAuthStore } from '@/store/authStore';
+import { paperLedgerToLeaderAgent } from '@/lib/paper/paperLeaderboard';
+import { isPaperLabAgentId } from '@/lib/arenaIds';
 import { AgentProfileModal } from './AgentProfileModal';
 import type { Agent } from '@/lib/types';
 
@@ -335,15 +340,19 @@ function LeaderboardSkeleton() {
 
 export function ArenaLeaderboard() {
   const { data: rawAgents, error, isLoading } = useLeaderboard();
+  const paperLive = usePaperLedgerLive();
+  const agentName = useAuthStore((s) => s.agent?.name);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
-  const agents = useMemo(
-    () => (rawAgents || []).sort((a, b) => b.trade_count - a.trade_count).slice(0, 50),
-    [rawAgents],
-  );
+  const agents = useMemo(() => {
+    const apiRows = (rawAgents || []).filter((a) => !isPaperLabAgentId(a.agentId));
+    const paperRow = paperLedgerToLeaderAgent(agentName, paperLive.ledger);
+    const merged = paperRow ? [paperRow, ...apiRows] : [...apiRows];
+    return merged.sort((a, b) => b.trade_count - a.trade_count).slice(0, 50);
+  }, [rawAgents, paperLive.ledger, agentName]);
 
-  const maxTrades = agents[0]?.trade_count || 1;
+  const maxTrades = Math.max(1, agents[0]?.trade_count || 1);
 
   // Podium display order: silver (2nd) — gold (1st) — bronze (3rd)
   const podiumSlots: Array<{ rank: 1 | 2 | 3; agent: (typeof agents)[number] | null }> = [
@@ -353,9 +362,20 @@ export function ArenaLeaderboard() {
   ];
 
   function handleCopy(id: string, addr: string) {
+    if (!addr || isPaperLabAgentId(id)) return;
     navigator.clipboard.writeText(addr);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  function openAgentProfile(agentId: string) {
+    if (isPaperLabAgentId(agentId)) {
+      toast.message('Paper lab', {
+        description: 'These closes exist in your browser until trades are posted to the competition API.',
+      });
+      return;
+    }
+    setSelectedAgentId(agentId);
   }
 
   return (
@@ -384,12 +404,22 @@ export function ArenaLeaderboard() {
             Agent Rankings
           </span>
         </div>
+        {agents.some((a) => isPaperLabAgentId(a.agentId)) && (
+          <p className="text-[8px] font-mono text-white/25 leading-snug px-0.5 mb-2 max-w-[280px]">
+            “You · Paper” is your local swarm book. Server rankings fill in when <code className="text-white/35">/arena/leaderboard</code> returns data.
+          </p>
+        )}
 
         {isLoading && <LeaderboardSkeleton />}
 
-        {!isLoading && (error || agents.length === 0) && (
+        {!isLoading && agents.length === 0 && (
           <div className="text-center py-8 text-white/35 text-[10px] font-mono tracking-widest">
             NO DATA AVAILABLE
+            {error ? (
+              <div className="mt-2 text-red-400/45 text-[9px] font-mono normal-case tracking-normal">
+                Leaderboard request failed — run Paper swarm to build a local row.
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -403,7 +433,7 @@ export function ArenaLeaderboard() {
                     key={agent.agentId}
                     agent={agent}
                     rank={rank}
-                    onClick={() => setSelectedAgentId(agent.agentId)}
+                    onClick={() => openAgentProfile(agent.agentId)}
                   />
                 ) : (
                   <div key={rank} />
@@ -426,7 +456,7 @@ export function ArenaLeaderboard() {
                     delay={idx * 25}
                     copiedId={copiedId}
                     onCopy={handleCopy}
-                    onClick={() => setSelectedAgentId(agent.agentId)}
+                    onClick={() => openAgentProfile(agent.agentId)}
                   />
                 ))}
               </div>

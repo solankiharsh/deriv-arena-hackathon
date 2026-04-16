@@ -22,6 +22,7 @@ type Competition struct {
 	StartTime       *time.Time      `json:"start_time,omitempty"`
 	EndTime         *time.Time      `json:"end_time,omitempty"`
 	ShareURL        string          `json:"share_url,omitempty"`
+	PartnerRules    json.RawMessage `json:"partner_rules,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -94,6 +95,7 @@ type CreateCompetitionRequest struct {
 	DurationHours   int             `json:"duration_hours"`
 	ContractTypes   []string        `json:"contract_types"`
 	StartingBalance decimal.Decimal `json:"starting_balance"`
+	PartnerRules    json.RawMessage `json:"partner_rules,omitempty"`
 }
 
 // JoinCompetitionRequest is the request to join a competition.

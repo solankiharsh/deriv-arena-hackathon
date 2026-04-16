@@ -69,7 +69,7 @@ Use this as the master execution list. Check items as you ship. Details and cont
 
 ## Phase 2b — Humans + agents on one leaderboard (dual participants)
 
-**Narrative:** Same competition, same Sortino rules; humans trade manually, agents run from a **worker** that records trades with their `participant_id`. Strategy lab (`/dashboard/paper-agent`) stays the **offline** place to tune policy before “deploy”.
+**Narrative:** Same competition, same Sortino rules; humans trade manually, agents run from a **worker** that records trades with their `participant_id`. Strategy lab (Arena Portfolio paper swarm + Command Center persona) stays the **offline** place to tune policy before “deploy”.
 
 **Schema / API**
 

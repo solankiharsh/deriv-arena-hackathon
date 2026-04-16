@@ -19,10 +19,10 @@ import {
   VoteDetailResponse,
   ProfileResponse,
   EpochReward,
+  AgentMeResponse,
   AgentTaskType,
   TaskLeaderboardEntry,
   TaskStats,
-  AgentMeResponse,
   AgentProfile,
   XPLeaderboardEntry,
   AgentConversationSummary,
@@ -45,6 +45,10 @@ import {
   AgentVoice,
   PredictionCoordinatorStatus,
 } from './types';
+
+import { isPaperLabAgentId } from '@/lib/arenaIds';
+
+export { isPaperLabAgentId };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
@@ -215,26 +219,110 @@ export const getJWT = () => tokenManager.getToken();
 export const clearJWT = () => tokenManager.clearToken();
 export const isAuthenticated = () => tokenManager.isAuthenticated();
 
+// ── Legacy arena API (mobile / backend) — DerivArena Go has no /arena/* routes yet ──
+
+/** Profile id used when `NEXT_PUBLIC_API_URL` is the competition API and `/arena/me` returns 404. */
+export const OFFLINE_AGENT_ID = 'derivarena-offline';
+
+export function isOfflineAgentId(id: string | null | undefined): boolean {
+  return id === OFFLINE_AGENT_ID;
+}
+
+/** True when the server has no legacy `/arena/*` (or related) implementation — not a transient outage. */
+function legacyArenaUnavailable(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  const st = err.response?.status;
+  return st === 404 || st === 501;
+}
+
+/** No HTTP response (API down, wrong host, CORS) — treat like offline for read-only UX. */
+function arenaConnectionFailed(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return false;
+  if (!err.response) return true;
+  const code = err.code;
+  return code === 'ERR_NETWORK' || code === 'ECONNREFUSED';
+}
+
+function buildOfflineAgentMeResponse(): AgentMeResponse {
+  const now = new Date().toISOString();
+  return {
+    success: true,
+    agent: {
+      id: OFFLINE_AGENT_ID,
+      pubkey: '',
+      walletAddress: '',
+      name: 'DerivArena',
+      avatarUrl: null,
+      bio: 'Competition API reachable without legacy /arena routes — use Arena Portfolio for synthetic swarm.',
+      twitterHandle: null,
+      status: 'ACTIVE',
+      xp: 0,
+      level: 1,
+      levelName: 'Recruit',
+      xpForNextLevel: 100,
+      totalTrades: 0,
+      winRate: 0,
+      totalPnl: 0,
+      onboardingComplete: true,
+      createdAt: now,
+    },
+    stats: {
+      sortinoRatio: 0,
+      maxDrawdown: 0,
+      totalPnl: 0,
+      totalTrades: 0,
+      winRate: 0,
+    },
+    onboarding: {
+      tasks: [],
+      totalTasks: 0,
+      completedTasks: 0,
+      progress: 1,
+    },
+  };
+}
+
+const EMPTY_EPOCH_REWARD: EpochReward = {
+  epoch: null,
+  allocations: [],
+  treasury: { balance: 0, distributed: 0, available: 0 },
+  distributions: [],
+};
+
 // Leaderboard
 export async function getLeaderboard(): Promise<Agent[]> {
-  const response = await api.get<LeaderboardResponse>('/arena/leaderboard');
-  return response.data.data?.rankings || [];
+  try {
+    const response = await api.get<LeaderboardResponse>('/arena/leaderboard');
+    return response.data.data?.rankings || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 // Get USDC Pool
 export async function getUSDCPool(): Promise<number> {
-  const response = await api.get<LeaderboardResponse>('/arena/leaderboard');
-  return response.data.data?.usdcPool || 0;
+  try {
+    const response = await api.get<LeaderboardResponse>('/arena/leaderboard');
+    return response.data.data?.usdcPool || 0;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return 0;
+    throw err;
+  }
 }
 
 // Get single agent (public arena endpoint)
 export async function getAgent(agentId: string): Promise<Agent> {
+  if (isPaperLabAgentId(agentId)) {
+    return Promise.reject(new Error('Paper lab has no server agent row'));
+  }
   const response = await api.get<{ success: boolean; data: Agent }>(`/arena/agents/${agentId}`);
   return response.data.data;
 }
 
 // Get agent trades (public arena endpoint)
 export async function getAgentTrades(agentId: string, limit = 50): Promise<Trade[]> {
+  if (isOfflineAgentId(agentId) || isPaperLabAgentId(agentId)) return [];
   const response = await api.get<TradesResponse>(`/arena/agents/${agentId}/trades`, {
     params: { limit },
   });
@@ -244,23 +332,34 @@ export async function getAgentTrades(agentId: string, limit = 50): Promise<Trade
 // Get recent trades (for tape) — cached 15s
 export async function getRecentTrades(limit = 100): Promise<Trade[]> {
   return cachedCall(`trades:${limit}`, 15_000, async () => {
-    const response = await api.get<TradesResponse>('/arena/trades', {
-      params: { limit },
-    });
-    return response.data.trades || [];
+    try {
+      const response = await api.get<TradesResponse>('/arena/trades', {
+        params: { limit },
+      });
+      return response.data.trades || [];
+    } catch (err) {
+      if (legacyArenaUnavailable(err)) return [];
+      throw err;
+    }
   });
 }
 
 // Get all positions — cached 15s
 export async function getAllPositions(): Promise<Position[]> {
   return cachedCall('positions:all', 15_000, async () => {
-    const response = await api.get<PositionsResponse>('/arena/positions');
-    return response.data.positions || [];
+    try {
+      const response = await api.get<PositionsResponse>('/arena/positions');
+      return response.data.positions || [];
+    } catch (err) {
+      if (legacyArenaUnavailable(err)) return [];
+      throw err;
+    }
   });
 }
 
 // Get agent positions (public arena endpoint)
 export async function getAgentPositions(agentId: string): Promise<Position[]> {
+  if (isOfflineAgentId(agentId) || isPaperLabAgentId(agentId)) return [];
   const response = await api.get<PositionsResponse>(`/arena/agents/${agentId}/positions`);
   return response.data.positions || [];
 }
@@ -318,8 +417,13 @@ export async function getVoteDetail(voteId: string): Promise<VoteDetail> {
 
 // Get epoch rewards (allocations + distributions)
 export async function getEpochRewards(): Promise<EpochReward> {
-  const response = await api.get<EpochReward>('/arena/epoch/rewards');
-  return response.data;
+  try {
+    const response = await api.get<EpochReward>('/arena/epoch/rewards');
+    return response.data;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return EMPTY_EPOCH_REWARD;
+    throw err;
+  }
 }
 
 // Get agent profile
@@ -336,10 +440,15 @@ export async function updateAgentProfile(wallet: string, data: ProfileUpdateData
 
 // Get arena tasks
 export async function getArenaTasks(tokenMint?: string): Promise<AgentTaskType[]> {
-  const params: any = {};
-  if (tokenMint) params.tokenMint = tokenMint;
-  const response = await api.get<{ tasks: AgentTaskType[] }>('/arena/tasks', { params });
-  return response.data.tasks || [];
+  try {
+    const params: any = {};
+    if (tokenMint) params.tokenMint = tokenMint;
+    const response = await api.get<{ tasks: AgentTaskType[] }>('/arena/tasks', { params });
+    return response.data.tasks || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 // Get task leaderboard
@@ -414,30 +523,45 @@ export async function verifyAgentSIWS(pubkey: string, signature: string, nonce: 
 
 // Get my agent profile (JWT required)
 export async function getMyAgent(): Promise<AgentMeResponse> {
-  const response = await api.get<AgentMeResponse>('/arena/me');
-  return response.data;
+  try {
+    const response = await api.get<AgentMeResponse>('/arena/me');
+    return response.data;
+  } catch (err) {
+    if (legacyArenaUnavailable(err) || arenaConnectionFailed(err)) return buildOfflineAgentMeResponse();
+    throw err;
+  }
 }
 
 // Get agent profile by ID (public)
 export async function getAgentProfileById(agentId: string): Promise<AgentProfile> {
+  if (isPaperLabAgentId(agentId)) {
+    return Promise.reject(new Error('Paper lab has no profile'));
+  }
   const response = await api.get<{ success: boolean; data: AgentProfile }>(`/agent-auth/profile/${agentId}`);
   return response.data.data;
 }
 
 // Get XP leaderboard
 export async function getXPLeaderboard(): Promise<XPLeaderboardEntry[]> {
-  const response = await api.get<{ rankings: XPLeaderboardEntry[] }>('/arena/leaderboard/xp');
-  return response.data.rankings || [];
+  try {
+    const response = await api.get<{ rankings: XPLeaderboardEntry[] }>('/arena/leaderboard/xp');
+    return response.data.rankings || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 // Get agent task completions
 export async function getAgentTaskCompletions(agentId: string): Promise<AgentTaskCompletionDetail[]> {
+  if (isOfflineAgentId(agentId) || isPaperLabAgentId(agentId)) return [];
   const response = await api.get<{ completions: AgentTaskCompletionDetail[] }>(`/arena/tasks/agent/${agentId}`);
   return response.data.completions || [];
 }
 
 // Get agent conversations
 export async function getAgentConversations(agentId: string): Promise<AgentConversationSummary[]> {
+  if (isOfflineAgentId(agentId) || isPaperLabAgentId(agentId)) return [];
   const response = await api.get<{ conversations: AgentConversationSummary[] }>(`/messaging/conversations/agent/${agentId}`);
   return response.data.conversations || [];
 }
@@ -531,9 +655,30 @@ export interface AgentTradingConfig {
   enabledContracts?: Record<string, boolean>;
 }
 
-export async function saveAgentConfig(config: AgentTradingConfig): Promise<{ success: boolean; data: any }> {
-  const response = await api.patch('/api/system/agent-config', config);
-  return response.data;
+/**
+ * Persists Command Center knobs via the **Next.js** app route `/api/system/agent-config`
+ * (same origin). The Go competition API on `NEXT_PUBLIC_API_URL` does not implement
+ * this path yet — calling it there produced `Network Error` when only `next dev` was running.
+ */
+export async function saveAgentConfig(config: AgentTradingConfig): Promise<{ success: boolean; data: unknown }> {
+  if (typeof window === 'undefined') {
+    throw new Error('saveAgentConfig is only available in the browser');
+  }
+  const token = tokenManager.getToken();
+  const res = await fetch(`${window.location.origin}/api/system/agent-config`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(config),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; data?: unknown };
+  if (!res.ok || data.success === false) {
+    const msg = typeof data.error === 'string' && data.error ? data.error : `Save failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return { success: true, data: data.data };
 }
 
 // ── Trading Execution ──
@@ -593,68 +738,118 @@ export async function getAgentBalance(agentId: string): Promise<{ success: boole
  */
 export async function getTrendingTokens(): Promise<TrendingToken[]> {
   return cachedCall('trending-tokens', 15_000, async () => {
-    const response = await api.get('/messaging/arena-tokens');
-    const body = response.data?.data || response.data || {};
-    const raw = body.tokens || [];
+    try {
+      const response = await api.get('/messaging/arena-tokens');
+      const body = response.data?.data || response.data || {};
+      const raw = body.tokens || [];
 
-    return raw.map((t: any) => ({
-      tokenMint: t.tokenMint,
-      tokenSymbol: t.tokenSymbol,
-      imageUrl: t.imageUrl || undefined,
-      priceUsd: t.priceUsd,
-      priceChange24h: t.priceChange24h,
-      marketCap: t.marketCap,
-      volume24h: t.volume24h,
-      liquidity: t.liquidity,
-      chain: t.chain,
-      conversationId: t.conversationId,
-      messageCount: t.messageCount || 0,
-      participantCount: t.participantCount || 0,
-      lastMessageAt: t.lastMessageAt,
-      lastMessage: t.lastMessage,
-      latestMessages: t.latestMessages || [],
-      sentiment: t.sentiment || undefined,
-      positions: t.positions || undefined,
-      taskCount: t.taskCount || undefined,
-      feedPreview: t.feedPreview || undefined,
-      activeAgentCount: t.activeAgentCount || 0,
-    }));
+      return raw.map((t: any) => ({
+        tokenMint: t.tokenMint,
+        tokenSymbol: t.tokenSymbol,
+        imageUrl: t.imageUrl || undefined,
+        priceUsd: t.priceUsd,
+        priceChange24h: t.priceChange24h,
+        marketCap: t.marketCap,
+        volume24h: t.volume24h,
+        liquidity: t.liquidity,
+        chain: t.chain,
+        conversationId: t.conversationId,
+        messageCount: t.messageCount || 0,
+        participantCount: t.participantCount || 0,
+        lastMessageAt: t.lastMessageAt,
+        lastMessage: t.lastMessage,
+        latestMessages: t.latestMessages || [],
+        sentiment: t.sentiment || undefined,
+        positions: t.positions || undefined,
+        taskCount: t.taskCount || undefined,
+        feedPreview: t.feedPreview || undefined,
+        activeAgentCount: t.activeAgentCount || 0,
+      }));
+    } catch (err) {
+      if (legacyArenaUnavailable(err)) return [];
+      throw err;
+    }
   });
 }
 
-// ── Prediction Markets ──
+// ── Prediction Markets (optional; DerivArena Go API may not mount /prediction/* yet) ──
+
+const EMPTY_PREDICTION_STATS: PredictionStats = {
+  totalMarkets: 0,
+  totalPredictions: 0,
+  resolvedPredictions: 0,
+  pendingPredictions: 0,
+  activeForecasters: 0,
+  avgAccuracy: 0,
+  avgBrierScore: 0,
+};
+
+const OFFLINE_PREDICTION_COORDINATOR: PredictionCoordinatorStatus = {
+  running: false,
+  cycleCount: 0,
+  intervalMs: 0,
+  lastRunAt: null,
+  marketsPerCycle: 0,
+  agentsPerMarket: 0,
+  baseContracts: 0,
+};
 
 export async function getPredictionMarkets(limit = 40, status: 'open' | 'closed' | 'settled' = 'open'): Promise<PredictionMarket[]> {
-  const response = await api.get<{ success: boolean; data: PredictionMarket[] }>('/prediction/markets', {
-    params: { limit, status },
-  });
-  return response.data.data || [];
+  try {
+    const response = await api.get<{ success: boolean; data: PredictionMarket[] }>('/prediction/markets', {
+      params: { limit, status },
+    });
+    return response.data.data || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 export async function getPredictionStats(): Promise<PredictionStats> {
-  const response = await api.get<{ success: boolean; data: PredictionStats }>('/prediction/stats');
-  return response.data.data;
+  try {
+    const response = await api.get<{ success: boolean; data: PredictionStats }>('/prediction/stats');
+    return response.data.data ?? EMPTY_PREDICTION_STATS;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return EMPTY_PREDICTION_STATS;
+    throw err;
+  }
 }
 
 export async function getPredictionLeaderboard(limit = 25): Promise<PredictionLeaderboardEntry[]> {
-  const response = await api.get<{ success: boolean; data: PredictionLeaderboardEntry[] }>('/prediction/leaderboard', {
-    params: { limit },
-  });
-  return response.data.data || [];
+  try {
+    const response = await api.get<{ success: boolean; data: PredictionLeaderboardEntry[] }>('/prediction/leaderboard', {
+      params: { limit },
+    });
+    return response.data.data || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 export async function getRecentPredictions(limit = 30): Promise<RecentPredictionEntry[]> {
-  const response = await api.get<{ success: boolean; data: RecentPredictionEntry[] }>('/prediction/recent', {
-    params: { limit },
-  });
-  return response.data.data || [];
+  try {
+    const response = await api.get<{ success: boolean; data: RecentPredictionEntry[] }>('/prediction/recent', {
+      params: { limit },
+    });
+    return response.data.data || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 export async function getMyPredictions(limit = 50): Promise<AgentPrediction[]> {
-  const response = await api.get<{ success: boolean; data: AgentPrediction[] }>('/prediction/predictions', {
-    params: { limit },
-  });
-  return response.data.data || [];
+  try {
+    const response = await api.get<{ success: boolean; data: AgentPrediction[] }>('/prediction/predictions', {
+      params: { limit },
+    });
+    return response.data.data || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 export async function placePrediction(
@@ -667,26 +862,50 @@ export async function placePrediction(
     placeRealOrder?: boolean;
   },
 ): Promise<{ success: boolean; data?: { predictionId: string }; error?: string }> {
-  const response = await api.post('/prediction/markets/' + encodeURIComponent(ticker) + '/predict', payload);
-  return response.data;
+  try {
+    const response = await api.post('/prediction/markets/' + encodeURIComponent(ticker) + '/predict', payload);
+    return response.data;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) {
+      return { success: false, error: 'Prediction markets are not enabled on this server.' };
+    }
+    throw err;
+  }
 }
 
 export async function getPredictionCoordinatorStatus(): Promise<PredictionCoordinatorStatus> {
-  const response = await api.get<{ success: boolean; data: PredictionCoordinatorStatus }>('/prediction/coordinator/status');
-  return response.data.data;
+  try {
+    const response = await api.get<{ success: boolean; data: PredictionCoordinatorStatus }>('/prediction/coordinator/status');
+    return response.data.data ?? OFFLINE_PREDICTION_COORDINATOR;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return OFFLINE_PREDICTION_COORDINATOR;
+    throw err;
+  }
 }
 
 export async function getAgentPredictionProfile(agentId: string): Promise<{ stats: any; recentPredictions: AgentPrediction[] }> {
-  const response = await api.get<{ success: boolean; data: any }>(`/prediction/agent/${agentId}`);
-  return response.data.data;
+  try {
+    const response = await api.get<{ success: boolean; data: any }>(`/prediction/agent/${agentId}`);
+    return response.data.data;
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) {
+      return { stats: null, recentPredictions: [] };
+    }
+    throw err;
+  }
 }
 
 export async function getMarketVoices(ticker: string, limit = 20): Promise<AgentVoice[]> {
-  const response = await api.get<{ success: boolean; data: AgentVoice[] }>(
-    `/prediction/markets/${encodeURIComponent(ticker)}/voices`,
-    { params: { limit } },
-  );
-  return response.data.data || [];
+  try {
+    const response = await api.get<{ success: boolean; data: AgentVoice[] }>(
+      `/prediction/markets/${encodeURIComponent(ticker)}/voices`,
+      { params: { limit } },
+    );
+    return response.data.data || [];
+  } catch (err) {
+    if (legacyArenaUnavailable(err)) return [];
+    throw err;
+  }
 }
 
 // ── Legacy dashboard hooks (stubs; wire to DerivArena backend when needed) ──
@@ -819,6 +1038,13 @@ export async function getMyAgentBalance(): Promise<{
   usdValue: number;
   hasWallet: boolean;
 }> {
-  const response = await api.get<{ success: boolean; data: { address: string | null; solBalance: number; usdValue: number; hasWallet: boolean } }>('/agent/balance');
-  return response.data.data;
+  try {
+    const response = await api.get<{ success: boolean; data: { address: string | null; solBalance: number; usdValue: number; hasWallet: boolean } }>('/agent/balance');
+    return response.data.data;
+  } catch (err) {
+    if (legacyArenaUnavailable(err) || arenaConnectionFailed(err)) {
+      return { address: null, solBalance: 0, usdValue: 0, hasWallet: false };
+    }
+    throw err;
+  }
 }

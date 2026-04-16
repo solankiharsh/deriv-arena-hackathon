@@ -25,6 +25,15 @@ function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+/** Host-published limits / weights (JSON from Go `partner_rules`). */
+export type PartnerRules = {
+  max_stake_per_contract?: string;
+  max_loss_per_day?: string;
+  max_drawdown_percent?: string;
+  market_bias?: string;
+  data_source_weights?: Record<string, number>;
+};
+
 export type Competition = {
   id: string;
   name: string;
@@ -39,6 +48,7 @@ export type Competition = {
   start_time?: string | null;
   end_time?: string | null;
   share_url?: string;
+  partner_rules?: PartnerRules;
   created_at: string;
   updated_at: string;
 };
@@ -52,6 +62,7 @@ export type CreateCompetitionInput = {
   partner_id?: string;
   partner_name?: string;
   app_id?: string;
+  partner_rules?: PartnerRules;
 };
 
 export async function listCompetitions(status?: string): Promise<Competition[]> {

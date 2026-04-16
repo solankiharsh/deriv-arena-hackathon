@@ -11,6 +11,8 @@ import { getArenaTasks, getAgentPositions, getAgentConversations } from '@/lib/a
 import type { AgentTaskType, Position, AgentConversationSummary } from '@/lib/types';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useArenaCommandFeeds } from '@/hooks/useArenaCommandFeeds';
+import type { PartnerRules } from '@/lib/derivarena-api';
 
 // ── Feed node definitions ───────────────────────────────────────
 
@@ -29,7 +31,7 @@ const FEED_DETAILS: Record<string, {
 }> = {
     deriv_ticks: {
         tagline: 'Real-time Synthetic Index Data',
-        description: 'Ingest real-time tick data from Deriv\'s synthetic markets (Volatility 100, Volatility 75, etc.) via the public WebSocket. Your agent analyzes tick patterns, volatility contractions, and price momentum to identify optimal entry points.',
+        description: 'Live: connects to Deriv’s public options WebSocket for the symbol chosen in Agent Configuration (same transport as the paper agent). Use it as the ground-truth price path for downstream signals.',
         features: [
             { icon: Zap, title: 'Instant Ticks', desc: 'Sub-second tick updates for Volatility indices via Deriv Public WS' },
             { icon: Eye, title: 'Volatility Analysis', desc: 'Monitors volatility spikes and contraction patterns for ACCU/Multiplier timing' },
@@ -44,22 +46,24 @@ const FEED_DETAILS: Record<string, {
     },
     sentiment: {
         tagline: 'News & Social Sentiment Ingestion',
-        description: 'Ingests macro and crypto sentiment from X (Twitter), Reddit, and News APIs. Uses NLP to gauge market mood around specific synthetic indices and derives a sentiment score for your agent to act on.',
+        description:
+            'Phase 1 (implemented): fuses your local agent policy / strategy notes with rolling tick “stress” (σ of recent returns) when the Deriv feed is on. Planned: allowlisted third-party feeds behind server routes so API keys never ship to the browser.',
         features: [
-            { icon: Target, title: 'X/Twitter Feed', desc: 'Real-time ingestion of trending finance discussions' },
-            { icon: Activity, title: 'Reddit Analysis', desc: 'Subreddit sentiment (r/wallstreetbets, r/investing)' },
-            { icon: TrendingUp, title: 'News API', desc: 'Breaking news ingestion for volatility events' },
-            { icon: Users, title: 'NLP Scoring', desc: 'LLM-powered sentiment scoring to weight trade conviction' },
+            { icon: Target, title: 'X/Twitter Feed', desc: 'Planned — server-side fetch with strict allowlists and rate limits' },
+            { icon: Activity, title: 'Reddit Analysis', desc: 'Planned — curated subreddit signals, not open scraping by default' },
+            { icon: TrendingUp, title: 'News API', desc: 'Planned — hosted news/sentiment providers with schema validation' },
+            { icon: Users, title: 'NLP Scoring', desc: 'Live today: policy-note channel; LLM scoring only when you wire a reviewed backend' },
         ],
         stats: [
-            { label: 'Sources', value: '50+' },
-            { label: 'Latency', value: '<5s' },
-            { label: 'Demo mode', value: 'Available' },
+            { label: 'Phase 1', value: 'Live' },
+            { label: 'Social APIs', value: 'Planned' },
+            { label: 'Keys', value: 'Server-only' },
         ],
     },
     pattern: {
         tagline: 'Technical Pattern Recognition',
-        description: 'Analyzes tick history to detect common technical patterns: volatility contraction, trend exhaustion, and accumulation phases. Ideal for timing Accumulator and Multiplier entries.',
+        description:
+            'Phase 1 (implemented): rolling per-tick volatility and a quiet / normal / agitated regime label from live returns. Planned: richer pattern detectors, walk-forward checks, and competition-specific overlays.',
         features: [
             { icon: Users, title: 'Volatility Contraction', desc: 'Detects low volatility windows for Accumulator entries' },
             { icon: Flame, title: 'Trend Exhaustion', desc: 'Identifies when a trend is losing momentum' },
@@ -67,14 +71,15 @@ const FEED_DETAILS: Record<string, {
             { icon: Sparkles, title: 'Backtest Module', desc: 'Test patterns against historical tick data before deploying' },
         ],
         stats: [
-            { label: 'Patterns tracked', value: '12+' },
-            { label: 'Accuracy', value: '~68%' },
-            { label: 'Backtest', value: 'Enabled' },
+            { label: 'Regime labels', value: '3' },
+            { label: 'Backtest', value: 'Planned' },
+            { label: 'Phase 1', value: 'Live' },
         ],
     },
     partner: {
         tagline: 'Partner Strategy Overrides',
-        description: 'Ingest custom strategy rules injected by the competition host (Partner). These can include forced contract types, risk limits, or sector biases that all agents in the competition must follow.',
+        description:
+            'Phase 1 (implemented): loads an active competition from the DerivArena Go API — `contract_types`, partner display fields, and optional `partner_rules` (max stake cap enforced on demo trade POST; other limits surfaced for agents / UI).',
         features: [
             { icon: Globe, title: 'Contract Rules', desc: 'Restrict agents to specific contract types (ACCU, MULTUP, CALL/PUT)' },
             { icon: TrendingUp, title: 'Risk Limits', desc: 'Set max stake, max loss, or drawdown limits per agent' },
@@ -82,12 +87,137 @@ const FEED_DETAILS: Record<string, {
             { icon: BarChart3, title: 'Leaderboard Weights', desc: 'Partner can weight signals from specific data sources higher' },
         ],
         stats: [
-            { label: 'Rules processed', value: 'Unlimited' },
-            { label: 'Signal latency', value: '<1s' },
-            { label: 'Partner tools', value: 'Active' },
+            { label: 'Allowlist', value: 'Live' },
+            { label: 'Stake cap', value: 'Live' },
+            { label: 'DD / day caps', value: 'Planned' },
         ],
     },
 };
+
+type CommandFeedsSnapshot = ReturnType<typeof useArenaCommandFeeds>;
+
+function formatDataSourceWeights(pr?: PartnerRules): string {
+    const w = pr?.data_source_weights;
+    if (!w || typeof w !== 'object') return '—';
+    const parts = Object.entries(w).map(([k, v]) => `${k}=${v}`);
+    return parts.length ? parts.join(' · ') : '—';
+}
+
+function liveStatsForFeed(feedId: string, cf: CommandFeedsSnapshot): { label: string; value: string }[] {
+    switch (feedId) {
+        case 'deriv_ticks':
+            if (!cf.enabledFeeds.deriv_ticks) {
+                return [
+                    { label: 'Feed', value: 'Off' },
+                    { label: 'Symbol', value: cf.selectedMarket },
+                    { label: 'Quote', value: '—' },
+                ];
+            }
+            return [
+                { label: 'Symbol', value: cf.selectedMarket },
+                { label: 'Last quote', value: cf.deriv.quote != null ? cf.deriv.quote.toFixed(5) : '—' },
+                { label: 'WebSocket', value: cf.deriv.status },
+            ];
+        case 'pattern':
+            if (!cf.enabledFeeds.pattern) {
+                return [{ label: 'Feed', value: 'Off' }, { label: 'Returns', value: '—' }, { label: 'Regime', value: '—' }];
+            }
+            return [
+                { label: 'Returns', value: cf.pattern ? String(cf.pattern.tickCount) : '0' },
+                { label: 'Regime', value: cf.pattern?.regime ?? '—' },
+                { label: 'Rolling σ', value: cf.pattern?.sigmaPerTick != null ? cf.pattern.sigmaPerTick.toExponential(2) : '—' },
+            ];
+        case 'partner': {
+            if (!cf.enabledFeeds.partner) {
+                return [{ label: 'Feed', value: 'Off' }, { label: 'Max stake', value: '—' }, { label: 'Weights', value: '—' }];
+            }
+            if (cf.partner.loading) {
+                return [{ label: 'Status', value: 'Loading…' }, { label: 'Max stake', value: '—' }, { label: 'Weights', value: '—' }];
+            }
+            if (cf.partner.error) return [{ label: 'API', value: 'Error' }, { label: 'Max stake', value: '—' }, { label: 'Weights', value: '—' }];
+            if (!cf.partner.competition) return [{ label: 'Active', value: 'None' }, { label: 'Max stake', value: '—' }, { label: 'Weights', value: '—' }];
+            const pr = cf.partner.competition.partner_rules;
+            const wStr = formatDataSourceWeights(pr);
+            const weightsCell = wStr === '—' ? '—' : (wStr.length > 28 ? `${wStr.slice(0, 28)}…` : wStr);
+            return [
+                { label: 'Partner', value: (cf.partner.competition.partner_name || cf.partner.competition.partner_id || '—').slice(0, 14) },
+                { label: 'Max stake', value: pr?.max_stake_per_contract ?? '—' },
+                { label: 'Weights', value: weightsCell },
+            ];
+        }
+        case 'sentiment': {
+            if (!cf.enabledFeeds.sentiment) {
+                return [{ label: 'Feed', value: 'Off' }, { label: 'Policy score', value: '—' }, { label: 'Tick stress σ', value: '—' }];
+            }
+            const s = cf.sentiment;
+            return [
+                { label: 'Policy score', value: s ? s.policyScore.toFixed(2) : '—' },
+                { label: 'Tick stress σ', value: s?.tickStressSigma != null ? s.tickStressSigma.toExponential(2) : '—' },
+                { label: 'Channel', value: 'Notes + ticks' },
+            ];
+        }
+        default:
+            return [];
+    }
+}
+
+function feedConnectionFoot(feedId: string, cf: CommandFeedsSnapshot): { ok: boolean; text: string } {
+    const on = cf.enabledFeeds[feedId as keyof typeof cf.enabledFeeds];
+    if (!on) return { ok: false, text: 'Feed disabled in Agent Configuration → Data Feeds.' };
+    switch (feedId) {
+        case 'deriv_ticks':
+            if (cf.deriv.status === 'open') return { ok: true, text: 'Live ticks from Deriv public WebSocket.' };
+            if (cf.deriv.status === 'error') return { ok: false, text: cf.deriv.detail ? `WS error: ${cf.deriv.detail}` : 'WebSocket error.' };
+            if (cf.deriv.status === 'connecting') return { ok: false, text: 'Connecting to Deriv…' };
+            return { ok: false, text: `WebSocket ${cf.deriv.status}.` };
+        case 'pattern':
+            if (!cf.enabledFeeds.deriv_ticks) return { ok: false, text: 'Enable Deriv ticks to compute patterns from returns.' };
+            if ((cf.pattern?.tickCount ?? 0) < 5) return { ok: false, text: 'Collecting returns for volatility / regime…' };
+            return { ok: true, text: cf.pattern?.headline ?? 'Patterns from live returns.' };
+        case 'partner': {
+            if (cf.partner.loading) return { ok: false, text: 'Loading active competitions…' };
+            if (cf.partner.error) return { ok: false, text: cf.partner.error };
+            if (!cf.partner.competition) return { ok: false, text: 'No active competition — create one or wait for host.' };
+            const c = cf.partner.competition;
+            const pr = c.partner_rules;
+            const allow = (c.contract_types || []).join(', ');
+            let tail = '';
+            if (pr?.max_drawdown_percent) tail += ` Max DD ${pr.max_drawdown_percent}%.`;
+            if (pr?.max_loss_per_day) tail += ` Max loss/day ${pr.max_loss_per_day}.`;
+            if (pr?.market_bias) tail += ` Bias ${pr.market_bias}.`;
+            const w = formatDataSourceWeights(pr);
+            if (w !== '—') tail += ` Weights: ${w}.`;
+            return {
+                ok: true,
+                text: `“${c.name}” — contracts: ${allow || '—'}.${tail}`,
+            };
+        }
+        case 'sentiment':
+            return { ok: true, text: cf.sentiment?.hint ?? 'Sentiment channel.' };
+        default:
+            return { ok: false, text: 'Unknown feed.' };
+    }
+}
+
+function feedStatusDotClass(feedId: string, cf: CommandFeedsSnapshot): string {
+    const on = cf.enabledFeeds[feedId as keyof typeof cf.enabledFeeds];
+    if (!on) return 'bg-white/25';
+    switch (feedId) {
+        case 'deriv_ticks':
+            if (cf.deriv.status === 'open') return 'bg-emerald-400';
+            if (cf.deriv.status === 'error') return 'bg-red-400';
+            return 'bg-amber-400';
+        case 'pattern':
+            return (cf.pattern?.tickCount ?? 0) >= 8 ? 'bg-emerald-400' : 'bg-amber-400';
+        case 'partner':
+            if (cf.partner.loading) return 'bg-amber-400';
+            return cf.partner.competition ? 'bg-emerald-400' : 'bg-white/30';
+        case 'sentiment':
+            return 'bg-emerald-400';
+        default:
+            return 'bg-white/25';
+    }
+}
 
 const AGENT_STATUS: Record<string, { label: string; color: string; dot: string }> = {
     TRAINING: { label: 'Training', color: 'text-yellow-400', dot: 'bg-yellow-400' },
@@ -292,6 +422,7 @@ const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof ListChecks }[] =
 
 export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: boolean }) {
     const { agent } = useAuthStore();
+    const commandFeeds = useArenaCommandFeeds();
     const { user, authenticated, login } = usePrivy();
     const rawAvatarUrl = agent?.avatarUrl || user?.twitter?.profilePictureUrl || null;
     const avatarUrl = rawAvatarUrl?.replace('_normal.', '_400x400.') ?? null;
@@ -448,6 +579,7 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
                                         onClick={() => setSelectedFeed(feed.id)}
                                         className="relative bg-white/[0.06] backdrop-blur-xl border border-white/[0.1] px-4 py-2.5 cursor-pointer active:bg-white/[0.1] transition-colors w-[72%]"
                                     >
+                                        <div className={`absolute top-2 right-3 w-1.5 h-1.5 rounded-full ${feedStatusDotClass(feed.id, commandFeeds)}`} aria-hidden />
                                         <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l" style={{ borderColor: c }} />
                                         <span className="absolute top-0 right-0 w-2.5 h-2.5 border-t border-r" style={{ borderColor: c }} />
                                         <span className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b border-l" style={{ borderColor: c }} />
@@ -632,8 +764,8 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
                                 </h3>
                                 <p className="text-[11px] text-white/35 text-center mt-1 leading-relaxed">
                                     {authenticated
-                                        ? 'All data feeds are live. Configure your strategy and start trading.'
-                                        : 'All data feeds converge here. Sign in to activate your AI trading agent.'}
+                                        ? 'Feeds follow Agent Configuration (local). Open any node for live connection status.'
+                                        : 'Command Center previews your agent pipeline. Sign in to bind identity and save config.'}
                                 </p>
 
                                 {/* CTA button */}
@@ -660,6 +792,7 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
                     open={!!selectedFeed}
                     onClose={() => setSelectedFeed(null)}
                     isMobile={isMobile}
+                    commandFeeds={commandFeeds}
                 />
             </div>
         );
@@ -697,6 +830,7 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
                                 className="relative bg-[#0e0e18]/90 backdrop-blur-md px-3 py-2 cursor-pointer group hover:bg-[#0e0e18] transition-colors duration-200"
                                 onClick={() => setSelectedFeed(feed.id)}
                             >
+                                <div className={`absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full ${feedStatusDotClass(feed.id, commandFeeds)}`} aria-hidden />
                                 {/* Corner brackets */}
                                 <span className="absolute top-0 left-0 w-2 h-2 border-t border-l" style={{ borderColor: c }} />
                                 <span className="absolute top-0 right-0 w-2 h-2 border-t border-r" style={{ borderColor: c }} />
@@ -881,6 +1015,7 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
                 open={!!selectedFeed}
                 onClose={() => setSelectedFeed(null)}
                 isMobile={isMobile}
+                commandFeeds={commandFeeds}
             />
         </div>
     );
@@ -888,12 +1023,26 @@ export function AgentDataFlow({ animatePipeline = true }: { animatePipeline?: bo
 
 // ── Feed Detail Sheet ───────────────────────────────────────────
 
-function FeedDetailSheet({ feedId, open, onClose, isMobile }: { feedId: string | null; open: boolean; onClose: () => void; isMobile: boolean }) {
+function FeedDetailSheet({
+    feedId,
+    open,
+    onClose,
+    isMobile,
+    commandFeeds,
+}: {
+    feedId: string | null;
+    open: boolean;
+    onClose: () => void;
+    isMobile: boolean;
+    commandFeeds: CommandFeedsSnapshot;
+}) {
     const feed = FEEDS.find(f => f.id === feedId);
     const details = feedId ? FEED_DETAILS[feedId] : null;
     if (!feed || !details) return null;
 
     const Icon = feed.icon;
+    const stats = feedId ? liveStatsForFeed(feedId, commandFeeds) : [];
+    const foot = feedId ? feedConnectionFoot(feedId, commandFeeds) : { ok: false, text: '' };
 
     return (
         <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -919,14 +1068,30 @@ function FeedDetailSheet({ feedId, open, onClose, isMobile }: { feedId: string |
                         {details.description}
                     </p>
 
-                    {/* Stats row */}
-                    <div className="grid grid-cols-3 gap-3">
-                        {details.stats.map((stat) => (
-                            <div key={stat.label} className="bg-white/[0.03] border border-white/[0.06] px-3 py-2.5 text-center">
-                                <div className="text-base font-bold font-mono" style={{ color: feed.color }}>{stat.value}</div>
-                                <div className="text-[10px] text-white/35 mt-0.5">{stat.label}</div>
-                            </div>
-                        ))}
+                    {/* Live stats (wired to prefs + Deriv WS + Go API + paper policy) */}
+                    <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Live status</h4>
+                        <div className="grid grid-cols-3 gap-3">
+                            {stats.map((stat) => (
+                                <div key={stat.label} className="bg-white/[0.03] border border-white/[0.06] px-3 py-2.5 text-center">
+                                    <div className="text-base font-bold font-mono break-all" style={{ color: feed.color }}>{stat.value}</div>
+                                    <div className="text-[10px] text-white/35 mt-0.5">{stat.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Roadmap / product stats (static targets — not telemetry) */}
+                    <div>
+                        <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-2">Product targets</h4>
+                        <div className="grid grid-cols-3 gap-3">
+                            {details.stats.map((stat) => (
+                                <div key={stat.label} className="bg-white/[0.02] border border-white/[0.05] px-3 py-2.5 text-center opacity-80">
+                                    <div className="text-sm font-bold font-mono text-white/50">{stat.value}</div>
+                                    <div className="text-[10px] text-white/30 mt-0.5">{stat.label}</div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Features */}
@@ -953,10 +1118,10 @@ function FeedDetailSheet({ feedId, open, onClose, isMobile }: { feedId: string |
                         </div>
                     </div>
 
-                    {/* Status indicator */}
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-white/[0.02] border border-white/[0.06]">
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-xs text-white/35">Feed active — delivering signals to your agent</span>
+                    {/* Connection truth line */}
+                    <div className="flex items-start gap-2 px-3 py-2.5 bg-white/[0.02] border border-white/[0.06]">
+                        <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${foot.ok ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                        <span className="text-xs text-white/45 leading-relaxed">{foot.text}</span>
                     </div>
                 </div>
             </SheetContent>

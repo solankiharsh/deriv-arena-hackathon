@@ -97,11 +97,13 @@ export function DepositPanel() {
         <div className="flex items-center gap-2 mb-2">
           <Wallet size={14} style={{ color: GOLD }} />
           <span className="text-xs font-mono font-semibold uppercase tracking-wider text-white/80">
-            Agent Wallet
+            On-chain wallet
           </span>
         </div>
-        <p className="text-xs text-white/35">
-          Wallet not yet created. Sign in again to initialize.
+        <p className="text-xs text-white/45 leading-relaxed text-pretty">
+          This build emphasizes <span className="text-amber-200/80">paper trading</span>. On-chain Solana custody is not
+          enabled. For balances and PnL, use the <span className="text-white/60">Paper swarm</span> column (center on
+          wide layouts).
         </p>
       </div>
     );

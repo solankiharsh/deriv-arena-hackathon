@@ -4,6 +4,14 @@ import { PaperLedger, type PaperPosition } from './ledger';
 
 const STORAGE_KEY = 'derivarena-paper-ledger-v1';
 
+/** Same-tab + cross-hook refresh when the paper book changes */
+export const PAPER_LEDGER_UPDATED_EVENT = 'derivarena-paper-ledger-updated';
+
+function emitPaperLedgerUpdated(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(PAPER_LEDGER_UPDATED_EVENT));
+}
+
 export interface SerializedPaperState {
   version: 1;
   initialCash: number;
@@ -46,6 +54,7 @@ export function savePaperLedgerToStorage(ledger: PaperLedger): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializePaperLedger(ledger)));
+    emitPaperLedgerUpdated();
   } catch {
     /* quota or private mode */
   }
@@ -55,6 +64,7 @@ export function clearPaperLedgerStorage(): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+    emitPaperLedgerUpdated();
   } catch {
     /* ignore */
   }

@@ -28,7 +28,12 @@ export {
   parseAgentPolicy,
   randomAgentPolicy,
 } from './agentPolicy';
-export { loadAgentPolicyFromStorage, saveAgentPolicyToStorage, AGENT_POLICY_STORAGE_KEY } from './agentPolicyStorage';
+export {
+  loadAgentPolicyFromStorage,
+  saveAgentPolicyToStorage,
+  AGENT_POLICY_STORAGE_KEY,
+  AGENT_POLICY_CHANGED_EVENT,
+} from './agentPolicyStorage';
 export { defaultSymbolForAsset, policyToTradingRuntime, sentimentFromPolicy, type TradingRuntime } from './policyToKnobs';
 
 export { fuseScores } from './fuse';

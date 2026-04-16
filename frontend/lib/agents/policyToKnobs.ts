@@ -2,6 +2,8 @@
 
 import type { AgentPolicy } from './agentPolicy';
 import type { AgentProfileKnobs, AnalyzerId } from './types';
+import type { PartnerRules } from '@/lib/derivarena-api';
+import { mergePartnerRulesIntoKnobs } from '@/lib/arena/mergePartnerSignalWeights';
 
 export interface TradingRuntime {
   knobs: AgentProfileKnobs;
@@ -108,6 +110,7 @@ function minConfidence(policy: AgentPolicy): number {
 export function policyToTradingRuntime(
   policy: AgentPolicy,
   stats: { winStreak: number; confidence: number; equityApprox: number },
+  options?: { partnerRules?: PartnerRules | null },
 ): TradingRuntime {
   const { base, maxPct } = baseStakeAndCaps(policy);
   const maxStake = Math.max(base, Math.round(policy.deployment.paperStartingCash * maxPct * 1.8));
@@ -130,14 +133,16 @@ export function policyToTradingRuntime(
     defaultStake = Math.max(5, Math.floor(stats.equityApprox * maxPct));
   }
 
+  const baseKnobs: AgentProfileKnobs = {
+    riskBias: riskBias(policy),
+    maxStake,
+    minConfidenceToTrade: minConfidence(policy),
+    defaultStake,
+    analyzerWeights: analyzerWeights(policy),
+  };
+
   return {
-    knobs: {
-      riskBias: riskBias(policy),
-      maxStake,
-      minConfidenceToTrade: minConfidence(policy),
-      defaultStake,
-      analyzerWeights: analyzerWeights(policy),
-    },
+    knobs: mergePartnerRulesIntoKnobs(baseKnobs, options?.partnerRules ?? null),
     maxOpenBars: maxOpenBarsFromPatience(policy.tradingStyle.patience),
     returnsLookback: returnsLookback(policy.identity.decisionStyle),
   };

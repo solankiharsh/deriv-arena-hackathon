@@ -497,4 +497,14 @@
       linear-gradient(to bottom, transparent, white 25%, white 75%, transparent);
     mask-composite: intersect;
   }
+
+  /**
+   * Privy mounts login UI in a top-level portal. Sticky navbar uses z-50; without this,
+   * the modal can sit underneath or feel visually “broken” next to site chrome.
+   */
+  body > div:has([data-privy-overlay]),
+  body > div:has([class*="privy-modal"]),
+  body > div:has(iframe[src*="privy.io"]) {
+    z-index: 100000 !important;
+  }
 }

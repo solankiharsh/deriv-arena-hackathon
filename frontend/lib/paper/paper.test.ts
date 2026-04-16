@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_KNOBS } from '../agents';
 import { PaperLedger } from './ledger';
+import { partnerRulesToPaperLimits } from './partnerEnforce';
 
 describe('PaperLedger', () => {
   it('rejects open when stake exceeds cash', () => {
@@ -43,6 +44,32 @@ describe('PaperLedger', () => {
       maxOpenBars: 5,
     });
     expect(r.closed.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('blocks open when partner max_stake_per_contract is lower than default stake', () => {
+    const L = new PaperLedger(10_000);
+    const knobs = {
+      ...DEFAULT_KNOBS,
+      minConfidenceToTrade: 0.1,
+      maxStake: 500,
+      defaultStake: 150,
+    };
+    const limits = partnerRulesToPaperLimits({
+      max_stake_per_contract: '100',
+    });
+    const r = L.applyPaperStep({
+      symbol: '1HZ100V',
+      markQuote: 1000,
+      action: 'CALL',
+      confidence: 0.9,
+      knobs,
+      barIndex: 0,
+      maxOpenBars: 20,
+      paperRuleLimits: limits,
+    });
+    expect(r.blockedReason).toBe('max_stake_per_contract');
+    expect(r.opened).toBeNull();
+    expect(L.positions).toHaveLength(0);
   });
 
   it('does not double-open same symbol', () => {

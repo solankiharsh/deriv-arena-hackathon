@@ -2,6 +2,7 @@
 
 import { TrendingUp, BarChart3, Trophy, Shield, Settings, Zap } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { isOfflineAgentId } from '@/lib/api';
 import { XPProgressBar } from '@/components/arena/XPProgressBar';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
@@ -49,7 +50,9 @@ export function AgentIdentityBar() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="bg-white/[0.03] border border-white/[0.06] px-3 py-1.5 rounded">
                         <span className="text-[10px] text-text-muted uppercase tracking-wider block">Agent ID</span>
-                        <span className="text-xs font-mono text-text-secondary truncate block max-w-[140px]">{agent.id.slice(0, 12)}…</span>
+                        <span className="text-xs font-mono text-text-secondary truncate block max-w-[140px]">
+                            {isOfflineAgentId(agent.id) ? 'Local UI (no legacy API)' : `${agent.id.slice(0, 12)}…`}
+                        </span>
                     </div>
                     <div className="bg-white/[0.03] border border-white/[0.06] px-3 py-1.5 rounded">
                         <span className="text-[10px] text-text-muted uppercase tracking-wider block">Since</span>

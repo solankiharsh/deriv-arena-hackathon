@@ -5,3 +5,5 @@ export { ActivityFeed } from './ActivityFeed';
 export { TrackedWalletsPanel } from './TrackedWalletsPanel';
 export { BuyTriggersPanel } from './BuyTriggersPanel';
 export { EpochRewardWidget } from './EpochRewardWidget';
+export { PaperSwarmRunner } from './PaperSwarmRunner';
+export { PaperAgentRunChart, type RunHistoryPoint } from './PaperAgentRunChart';

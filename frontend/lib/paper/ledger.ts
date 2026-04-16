@@ -2,6 +2,11 @@
 
 import type { AgentProfileKnobs } from '../agents/types';
 import type { TradeAction } from '../agents/types';
+import {
+  computePaperClosePnl,
+  paperStepBlockedReason,
+  type PaperRuleLimits,
+} from './partnerEnforce';
 
 export type PaperSide = 'CALL' | 'PUT';
 
@@ -35,12 +40,18 @@ export interface ApplyPaperStepParams {
   barIndex: number;
   /** Close any open leg after this many bars */
   maxOpenBars: number;
+  /** Optional host caps — same semantics as Go `partner_rules` for paper simulation. */
+  paperRuleLimits?: PaperRuleLimits;
+  /** Wall time for daily-loss UTC window (defaults to `Date.now()`). */
+  nowMs?: number;
 }
 
 export interface ApplyPaperStepResult {
   opened: PaperPosition | null;
   closed: PaperPosition[];
   ledger: PaperLedgerSnapshot;
+  /** Set when the step was skipped to honor `paperRuleLimits`. */
+  blockedReason?: string;
 }
 
 function newId(): string {
@@ -106,12 +117,7 @@ export class PaperLedger {
 
   private closePosition(pos: PaperPosition, exitQuote: number): void {
     if (pos.status !== 'open' || exitQuote <= 0 || pos.entryQuote <= 0) return;
-    let pnl = 0;
-    if (pos.side === 'CALL') {
-      pnl = pos.stake * ((exitQuote - pos.entryQuote) / pos.entryQuote);
-    } else {
-      pnl = pos.stake * ((pos.entryQuote - exitQuote) / pos.entryQuote);
-    }
+    const pnl = computePaperClosePnl(pos, exitQuote);
     pos.pnl = pnl;
     pos.exitQuote = exitQuote;
     pos.closedAt = Date.now();
@@ -123,9 +129,11 @@ export class PaperLedger {
    * Close legs on opposing signal or max holding bars; optionally open aligned with fused action.
    */
   applyPaperStep(params: ApplyPaperStepParams): ApplyPaperStepResult {
-    const { symbol, markQuote, action, confidence, knobs, barIndex, maxOpenBars } = params;
+    const { symbol, markQuote, action, confidence, knobs, barIndex, maxOpenBars, paperRuleLimits, nowMs } = params;
+    const t = nowMs ?? Date.now();
     const closed: PaperPosition[] = [];
 
+    const toClose: PaperPosition[] = [];
     for (const p of this.positions) {
       if (p.status !== 'open' || p.symbol !== symbol) continue;
       const bars = barIndex - p.openBar;
@@ -133,18 +141,46 @@ export class PaperLedger {
       const oppose =
         (p.side === 'CALL' && action === 'PUT') || (p.side === 'PUT' && action === 'CALL');
       if (tooLong || oppose) {
-        this.closePosition(p, markQuote);
-        closed.push({ ...p });
+        toClose.push(p);
       }
     }
 
-    let opened: PaperPosition | null = null;
-    const canTrade = confidence >= knobs.minConfidenceToTrade;
-    const hasOpen = this.positions.some((p) => p.symbol === symbol && p.status === 'open');
-    const stake = knobs.defaultStake;
-    const stakeOk = stake > 0 && stake <= knobs.maxStake && stake <= this.cash;
+    const closePnls = toClose.map((p) => computePaperClosePnl(p, markQuote));
 
-    if (!hasOpen && canTrade && stakeOk && (action === 'CALL' || action === 'PUT')) {
+    let projectedCash = this.cash;
+    for (let i = 0; i < toClose.length; i++) {
+      projectedCash += toClose[i]!.stake + closePnls[i]!;
+    }
+
+    const canTrade = confidence >= knobs.minConfidenceToTrade;
+    const stake = knobs.defaultStake;
+    const wouldKeepOpen = this.positions.some(
+      (p) => p.symbol === symbol && p.status === 'open' && !toClose.includes(p),
+    );
+    const stakeOkAfterCloses = stake > 0 && stake <= knobs.maxStake && stake <= projectedCash;
+    const willTryOpen =
+      !wouldKeepOpen && canTrade && stakeOkAfterCloses && (action === 'CALL' || action === 'PUT');
+    const wouldOpenStake = willTryOpen ? stake : null;
+
+    const blocked = paperStepBlockedReason(paperRuleLimits, this, closePnls, wouldOpenStake, t);
+    if (blocked) {
+      return {
+        opened: null,
+        closed: [],
+        ledger: this.snapshot(markQuote),
+        blockedReason: blocked,
+      };
+    }
+
+    for (const p of toClose) {
+      this.closePosition(p, markQuote);
+      closed.push({ ...p });
+    }
+
+    let opened: PaperPosition | null = null;
+    const hasOpenNow = this.positions.some((p) => p.symbol === symbol && p.status === 'open');
+    const stakeOk = stake > 0 && stake <= knobs.maxStake && stake <= this.cash;
+    if (!hasOpenNow && canTrade && stakeOk && (action === 'CALL' || action === 'PUT')) {
       const side: PaperSide = action === 'CALL' ? 'CALL' : 'PUT';
       opened = this.open(symbol, side, stake, markQuote, barIndex);
     }

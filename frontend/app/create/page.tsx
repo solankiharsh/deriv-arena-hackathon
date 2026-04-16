@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { PlusCircle, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
-import { createCompetition, type Competition } from '@/lib/derivarena-api';
+import { createCompetition, type Competition, type PartnerRules } from '@/lib/derivarena-api';
 
 const DURATION_OPTIONS = [
   { value: 1, label: '1 hour' },
@@ -21,6 +21,14 @@ export default function CreateCompetitionPage() {
   const [startingBalance, setStartingBalance] = useState('10000');
   const [partnerName, setPartnerName] = useState('');
   const [appId, setAppId] = useState('');
+  const [maxStakeCap, setMaxStakeCap] = useState('');
+  const [maxLossDay, setMaxLossDay] = useState('');
+  const [maxDdPct, setMaxDdPct] = useState('');
+  const [marketBias, setMarketBias] = useState('');
+  const [wDeriv, setWDeriv] = useState('');
+  const [wSentiment, setWSentiment] = useState('');
+  const [wPattern, setWPattern] = useState('');
+  const [wPartner, setWPartner] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['CALL', 'PUT']);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +58,38 @@ export default function CreateCompetitionPage() {
       return;
     }
 
+    const weights: Record<string, number> = {};
+    const pushW = (key: string, raw: string) => {
+      const t = raw.trim();
+      if (!t) return;
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 0 || n > 10) return;
+      weights[key] = n;
+    };
+    pushW('deriv_ticks', wDeriv);
+    pushW('sentiment', wSentiment);
+    pushW('pattern', wPattern);
+    pushW('partner', wPartner);
+
+    const partner_rules: PartnerRules | undefined = (() => {
+      const pr: PartnerRules = {};
+      if (maxStakeCap.trim()) pr.max_stake_per_contract = maxStakeCap.trim();
+      if (maxLossDay.trim()) pr.max_loss_per_day = maxLossDay.trim();
+      if (maxDdPct.trim()) pr.max_drawdown_percent = maxDdPct.trim();
+      if (marketBias.trim()) pr.market_bias = marketBias.trim();
+      if (Object.keys(weights).length > 0) pr.data_source_weights = weights;
+      if (
+        !pr.max_stake_per_contract
+        && !pr.max_loss_per_day
+        && !pr.max_drawdown_percent
+        && !pr.market_bias
+        && !pr.data_source_weights
+      ) {
+        return undefined;
+      }
+      return pr;
+    })();
+
     setSubmitting(true);
     try {
       const comp = await createCompetition({
@@ -59,6 +99,7 @@ export default function CreateCompetitionPage() {
         starting_balance: bal,
         partner_name: partnerName.trim() || undefined,
         app_id: appId.trim() || undefined,
+        partner_rules,
       });
       setCreated(comp);
     } catch (err) {
@@ -222,6 +263,108 @@ export default function CreateCompetitionPage() {
                 className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
                 placeholder="Referral / commission attribution"
               />
+            </div>
+
+            <div className="border border-white/10 bg-white/[0.02] p-4 space-y-3">
+              <p className="text-xs font-mono uppercase tracking-wider text-text-muted">Partner rules (optional)</p>
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                Stored as <code className="text-[10px]">partner_rules</code> on the competition.{' '}
+                <code className="text-[10px]">max_stake_per_contract</code> is enforced on{' '}
+                <code className="text-[10px]">POST …/trade</code>; other fields are for agents / UI until enforcement lands.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-text-muted mb-1">Max stake / contract</label>
+                  <input
+                    value={maxStakeCap}
+                    onChange={(e) => setMaxStakeCap(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1.5 bg-bg-primary border border-white/10 text-text-primary text-sm"
+                    placeholder="e.g. 100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-muted mb-1">Max loss / day</label>
+                  <input
+                    value={maxLossDay}
+                    onChange={(e) => setMaxLossDay(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1.5 bg-bg-primary border border-white/10 text-text-primary text-sm"
+                    placeholder="e.g. 500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-muted mb-1">Max drawdown %</label>
+                  <input
+                    value={maxDdPct}
+                    onChange={(e) => setMaxDdPct(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1.5 bg-bg-primary border border-white/10 text-text-primary text-sm"
+                    placeholder="0–100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-muted mb-1">Market bias (−1 … 1)</label>
+                  <input
+                    value={marketBias}
+                    onChange={(e) => setMarketBias(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1.5 bg-bg-primary border border-white/10 text-text-primary text-sm"
+                    placeholder="-1 to 1"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-text-muted">Signal weights (0–10 each, optional)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[9px] text-text-muted mb-0.5 font-mono">Ticks</label>
+                  <input
+                    value={wDeriv}
+                    onChange={(e) => setWDeriv(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1 bg-bg-primary border border-white/10 text-text-primary text-xs"
+                    placeholder="—"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-text-muted mb-0.5 font-mono">Sentiment</label>
+                  <input
+                    value={wSentiment}
+                    onChange={(e) => setWSentiment(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1 bg-bg-primary border border-white/10 text-text-primary text-xs"
+                    placeholder="—"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-text-muted mb-0.5 font-mono">Patterns</label>
+                  <input
+                    value={wPattern}
+                    onChange={(e) => setWPattern(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1 bg-bg-primary border border-white/10 text-text-primary text-xs"
+                    placeholder="—"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-text-muted mb-0.5 font-mono">Partner</label>
+                  <input
+                    value={wPartner}
+                    onChange={(e) => setWPartner(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full px-2 py-1 bg-bg-primary border border-white/10 text-text-primary text-xs"
+                    placeholder="—"
+                  />
+                </div>
+              </div>
             </div>
 
             {error && (

@@ -10,6 +10,8 @@ import { OnboardingChecklist } from './OnboardingChecklist';
 import { TasksPanel } from './TasksPanel';
 import { ConversationsPanel } from './ConversationsPanel';
 import { AgentConfigPanel } from './AgentConfigPanel';
+import { usePaperLedgerLive } from '@/hooks/usePaperLedgerLive';
+import { PaperActivityFeed, PaperTradingRecap } from './PaperIntelPanels';
 
 
 type PanelTab = 'stats' | 'tasks' | 'activity' | 'configure';
@@ -35,6 +37,7 @@ export function MyAgentPanel() {
 
   // SWR handles polling + caching + deduplication
   const { data: meData } = useMyAgent(isAuthenticated);
+  const paperLive = usePaperLedgerLive();
 
   useEffect(() => {
     if (meData) {
@@ -119,6 +122,20 @@ export function MyAgentPanel() {
               </span>
             </div>
           </div>
+          <div className="flex md:hidden flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] font-mono text-white/40 w-full">
+            <span>
+              Arena trades:{' '}
+              <span className="text-white/75 tabular-nums">{agent.totalTrades}</span>
+            </span>
+            <span>
+              Paper closes:{' '}
+              <span className="text-white/75 tabular-nums">{paperLive.closedCount}</span>
+            </span>
+            <span>
+              Paper W%:{' '}
+              <span className="text-white/75 tabular-nums">{paperLive.winRatePercent}</span>
+            </span>
+          </div>
         </div>
 
         {/* Quick stats */}
@@ -189,16 +206,28 @@ export function MyAgentPanel() {
 
               {/* Tab content */}
               <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-4">
-                {activeTab === 'stats' && onboardingProgress < 100 && (
-                  <OnboardingChecklist
-                    tasks={onboardingTasks}
-                    completedTasks={onboardingTasks.filter(t => t.status === 'VALIDATED').length}
-                    totalTasks={onboardingTasks.length}
-                  />
+                {activeTab === 'stats' && (
+                  <>
+                    {onboardingProgress < 100 && (
+                      <OnboardingChecklist
+                        tasks={onboardingTasks}
+                        completedTasks={onboardingTasks.filter((t) => t.status === 'VALIDATED').length}
+                        totalTasks={onboardingTasks.length}
+                      />
+                    )}
+                    <div className={onboardingProgress < 100 ? 'mt-4' : ''}>
+                      <PaperTradingRecap paper={paperLive} />
+                    </div>
+                  </>
                 )}
 
                 {activeTab === 'tasks' && <TasksPanel />}
-                {activeTab === 'activity' && <ConversationsPanel />}
+                {activeTab === 'activity' && (
+                  <>
+                    <PaperActivityFeed paper={paperLive} />
+                    <ConversationsPanel />
+                  </>
+                )}
                 {activeTab === 'configure' && <AgentConfigPanel />}
               </div>
             </div>

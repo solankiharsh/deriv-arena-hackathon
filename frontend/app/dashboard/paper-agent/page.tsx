@@ -1,5 +1,5 @@
-import { PaperAgentClient } from './PaperAgentClient';
+import { redirect } from 'next/navigation';
 
 export default function PaperAgentPage() {
-  return <PaperAgentClient />;
+  redirect('/arena');
 }

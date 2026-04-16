@@ -28,12 +28,13 @@ import {
   ConversationsPanel,
   TradeRecommendationBanner,
   DepositPanel,
-  PortfolioPanel,
   LiveActivityTicker,
   SpectatorCTA,
+  ArenaPaperPortfolio,
+  ArenaPaperSwarmColumn,
 } from '@/components/arena';
 import type { ArenaToken } from '@/components/arena';
-import { AgentConfigPanel, AgentDataFlow, TrackedWalletsPanel, BuyTriggersPanel } from '@/components/dashboard';
+import { AgentConfigPanel, AgentDataFlow } from '@/components/dashboard';
 import { useAuthStore } from '@/store/authStore';
 
 
@@ -347,7 +348,6 @@ function ConversationsView() {
   const initialLoadDone = useRef(false);
   const [ready, setReady] = useState(false);
   const [newMints, setNewMints] = useState<Set<string>>(new Set());
-  const [leaderboardTab, setLeaderboardTab] = useState<'trades' | 'xp'>('trades');
   const { isAuthenticated } = useAuthStore();
 
   const fetchData = useCallback(async () => {
@@ -431,61 +431,16 @@ function ConversationsView() {
     <>
       <LiveActivityTicker />
 
-      {/* Split layout: tokens left, divider, sidebar right */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_auto_minmax(360px,1fr)] gap-6">
-        {/* Left — Command center + Token cards grid */}
-        <div className="min-w-0 animate-arena-reveal space-y-5">
-          <CommandCenterSection />
+      {/* Full-width pipeline hero (AgentDataFlow needs horizontal room), then config | paper | wallet row */}
+      <div className="space-y-6">
+        <ArenaDiscussionsCommandStack isAuthenticated={isAuthenticated} />
+
+        <div className="animate-arena-reveal min-w-0" style={{ animationDelay: '140ms' }}>
           <TokenConversationGrid
             tokens={tokens}
             newMints={newMints}
             onTokenClick={(token) => setSelectedToken(token)}
           />
-        </div>
-
-        {/* Vertical divider */}
-        <div className="hidden lg:block w-px self-stretch" style={{ background: 'rgba(255,255,255,0.06)' }} />
-
-        {/* Right sidebar */}
-        <div className="space-y-5">
-          <div className="animate-arena-reveal" style={{ animationDelay: '60ms' }}>
-            {isAuthenticated ? <MyAgentPanel /> : <SpectatorCTA />}
-          </div>
-
-          {isAuthenticated && (
-            <>
-              <div className="animate-arena-reveal" style={{ animationDelay: '90ms' }}>
-                <DepositPanel />
-              </div>
-              <div className="animate-arena-reveal" style={{ animationDelay: '105ms' }}>
-                <PortfolioPanel />
-              </div>
-            </>
-          )}
-
-          <div className="animate-arena-reveal" style={{ animationDelay: '120ms' }}>
-            <div style={{ background: 'rgba(12,16,32,0.6)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }} className="p-4">
-              <div className="flex items-center gap-1 mb-4">
-                {(['trades', 'xp'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setLeaderboardTab(tab)}
-                    className="text-xs font-semibold uppercase tracking-wider px-3 py-1.5 transition-colors cursor-pointer font-mono"
-                    style={leaderboardTab === tab
-                      ? { color: GOLD, background: 'rgba(232,180,94,0.08)', border: '1px solid rgba(232,180,94,0.2)' }
-                      : { color: 'rgba(255,255,255,0.3)', border: '1px solid transparent' }}
-                  >
-                    {tab === 'trades' ? 'Trades' : 'XP'}
-                  </button>
-                ))}
-              </div>
-              {leaderboardTab === 'trades' ? <ArenaLeaderboard /> : <XPLeaderboard />}
-            </div>
-          </div>
-
-          <div className="animate-arena-reveal" style={{ animationDelay: '180ms' }}>
-            <EpochRewardPanel />
-          </div>
         </div>
       </div>
 
@@ -499,10 +454,10 @@ function ConversationsView() {
   );
 }
 
-// ── Command Center Section (moved from /dashboard) ──
+// ── Discussions: full-width AgentDataFlow, then config | paper swarm | wallet (matches dashboard rhythm) ──
 
-function CommandCenterSection() {
-  const { isAuthenticated, _hasHydrated, setAuth } = useAuthStore();
+function ArenaDiscussionsCommandStack({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const { _hasHydrated, setAuth } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -522,10 +477,11 @@ function CommandCenterSection() {
   if (!_hasHydrated || loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <SkeletonBlock className="h-[320px]" />
-        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-          <SkeletonBlock className="h-[300px]" />
-          <SkeletonBlock className="h-[300px]" />
+        <SkeletonBlock className="h-[min(420px,52vh)] w-full rounded-lg" />
+        <div className="grid grid-cols-1 gap-5 xl:gap-6 xl:grid-cols-2 2xl:grid-cols-12">
+          <SkeletonBlock className="h-[280px] min-w-0 rounded-lg 2xl:col-span-3" />
+          <SkeletonBlock className="h-[320px] min-w-0 rounded-lg 2xl:col-span-5" />
+          <SkeletonBlock className="h-[260px] min-w-0 rounded-lg xl:col-span-2 2xl:col-span-4" />
         </div>
       </div>
     );
@@ -533,19 +489,47 @@ function CommandCenterSection() {
 
   return (
     <div className="space-y-6 animate-arena-reveal">
-      <div className="mb-2">
-        <h1 className="text-base font-black font-mono text-white tracking-tight">COMMAND CENTER</h1>
-        <p className="text-[11px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-          Your agent&apos;s data ingestion pipeline — each source feeds real-time signals into your strategy.
-        </p>
-      </div>
-      <AgentDataFlow />
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-        <div className="space-y-6">
-          <AgentConfigPanel />
-          <BuyTriggersPanel />
+      <div className="space-y-4">
+        <div className="mb-1">
+          <h1 className="text-base font-black font-mono text-white tracking-tight">COMMAND CENTER</h1>
+          <p className="text-[11px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            Your agent&apos;s data ingestion pipeline — each source feeds real-time signals into your strategy.
+          </p>
         </div>
-        <TrackedWalletsPanel />
+        <AgentDataFlow />
+      </div>
+
+      {/*
+        xl: config | paper, then wallet/portfolio full-width row (readable side rail).
+        2xl: three columns — wider third track than the old minmax(..., 340px) cap.
+      */}
+      <div className="grid grid-cols-1 gap-5 xl:gap-6 xl:grid-cols-2 2xl:grid-cols-12 items-start">
+        <div className="min-w-0 space-y-5 2xl:col-span-3">
+          <AgentConfigPanel />
+        </div>
+
+        <div className="min-w-0 w-full animate-arena-reveal 2xl:col-span-5" style={{ animationDelay: '40ms' }}>
+          <ArenaPaperSwarmColumn />
+        </div>
+
+        <div className="space-y-5 min-w-0 w-full xl:col-span-2 2xl:col-span-4">
+          <div className="animate-arena-reveal" style={{ animationDelay: '60ms' }}>
+            {isAuthenticated ? <MyAgentPanel /> : <SpectatorCTA />}
+          </div>
+
+          {isAuthenticated && (
+            <div className="animate-arena-reveal" style={{ animationDelay: '80ms' }}>
+              <DepositPanel />
+            </div>
+          )}
+          <div className="animate-arena-reveal" style={{ animationDelay: '100ms' }}>
+            <ArenaPaperPortfolio />
+          </div>
+
+          <div className="animate-arena-reveal" style={{ animationDelay: '120ms' }}>
+            <EpochRewardPanel />
+          </div>
+        </div>
       </div>
     </div>
   );

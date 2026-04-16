@@ -52,11 +52,11 @@ derivarena/
 │   ├── internal/exchange/              # DerivClient (auth WS), sim stub
 │   └── migrations/                     # DB schema
 ├── frontend/
-│   ├── app/                            # Next.js pages (+ `/dashboard/paper-agent` lab)
+│   ├── app/                            # Next.js pages (+ Arena / Command Center paper swarm)
 │   ├── components/arena/               # Arena UI components
 │   │   ├── ArenaLeaderboard.tsx
 │   │   ├── LiveActivityTicker.tsx
-│   │   ├── PortfolioPanel.tsx
+│   │   ├── ArenaPaperPortfolio.tsx
 │   │   └── XPProgressBar.tsx
 │   ├── lib/agents/                     # Swarm + policy (ranked comps: POST trades via Go API)
 │   ├── lib/paper/                      # Paper ledger (local until wired to competition)

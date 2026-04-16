@@ -1,6 +1,6 @@
 # Humans + agents in the same competition
 
-This document fixes the earlier ideation gap: **the platform already has two halves** — a Go **competition engine** (participants, trades, Sortino, SSE) and a Next.js **strategy lab** (`frontend/lib/agents`, paper ledger, `/dashboard/paper-agent`). The product story you want is **one arena** where both **people** and **deployed agents** participate under the **same rules** and **comparable stats**.
+This document fixes the earlier ideation gap: **the platform already has two halves** — a Go **competition engine** (participants, trades, Sortino, SSE) and a Next.js **strategy lab** (`frontend/lib/agents`, paper ledger, **Arena / Command Center** with a **center Paper swarm column** between configuration and wallet). The product story you want is **one arena** where both **people** and **deployed agents** participate under the **same rules** and **comparable stats**.
 
 ---
 
@@ -87,7 +87,7 @@ Use **`trades`** as source of truth:
 | Live prices | Yes | Yes | Server snapshot SSE or poll; same payload to both |
 | Rules + allowlist | Yes | Yes | From `competition.contract_types` + `derivcontract` map |
 | Risk / Sortino explain | Yes | Yes | Static copy + link to `docs/` Sortino definition |
-| Policy lab | Yes (tune) | Yes (author) | Keep `/dashboard/paper-agent`; “export policy JSON” for bot |
+| Policy lab | Yes (tune) | Yes (author) | Agent Configuration + center Paper swarm; “export policy JSON” for bot |
 | LLM coach | Optional | Optional | **Never on tick path**; cache tips every N seconds or on user click (see ROADMAP Phase 5) |
 
 ---

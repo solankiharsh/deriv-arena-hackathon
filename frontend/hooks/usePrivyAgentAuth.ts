@@ -1,5 +1,6 @@
 "use client";
 
+import axios from 'axios';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -37,9 +38,22 @@ export function usePrivyAgentAuth() {
       let loginResponse;
       try {
         loginResponse = await loginWithPrivyToken(privyToken);
-      } catch (loginErr: any) {
-        console.error('[auth] /auth/login failed:', loginErr?.response?.data || loginErr?.message);
-        throw new Error(`Login failed: ${loginErr?.response?.data?.error?.message || loginErr?.message || 'Backend unreachable'}`);
+      } catch (loginErr: unknown) {
+        console.error('[auth] /auth/login failed:', axios.isAxiosError(loginErr) ? loginErr.response?.data : loginErr);
+        const net =
+          axios.isAxiosError(loginErr) &&
+          (!loginErr.response || loginErr.code === 'ERR_NETWORK' || loginErr.message === 'Network Error');
+        if (net) {
+          throw new Error(
+            'Auth API unreachable (check NEXT_PUBLIC_API_URL / run the backend). You can still use Arena Portfolio offline.',
+          );
+        }
+        const msg = axios.isAxiosError(loginErr)
+          ? loginErr.response?.data?.error?.message || loginErr.message
+          : loginErr instanceof Error
+            ? loginErr.message
+            : 'Login failed';
+        throw new Error(`Login failed: ${msg}`);
       }
 
       const currentUser = userRef.current;

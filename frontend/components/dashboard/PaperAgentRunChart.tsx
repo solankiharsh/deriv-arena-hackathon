@@ -28,9 +28,12 @@ export type RunHistoryPoint = {
 export function PaperAgentRunChart({
   history,
   lastSwarm,
+  chartHeight = 200,
 }: {
   history: RunHistoryPoint[];
   lastSwarm: SwarmResult | null;
+  /** Pixel height for each chart panel (Recharts ResponsiveContainer). */
+  chartHeight?: number;
 }) {
   const equityData = useMemo(
     () => history.map((h) => ({ name: String(h.bar), equity: h.equity, action: h.action })),
@@ -43,7 +46,7 @@ export function PaperAgentRunChart({
   }, [lastSwarm]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0">
       <div className="border border-white/[0.08] rounded-lg p-3" style={{ background: '#0a0c12' }}>
         <div className="text-[10px] font-mono uppercase tracking-wider mb-2" style={{ color: GOLD }}>
           Paper equity (per step)
@@ -51,7 +54,7 @@ export function PaperAgentRunChart({
         {equityData.length < 2 ? (
           <p className="text-[11px] text-white/35 font-mono py-8 text-center">Run steps to chart equity</p>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <LineChart data={equityData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 10 }} />
@@ -73,7 +76,7 @@ export function PaperAgentRunChart({
         {!lastSwarm ? (
           <p className="text-[11px] text-white/35 font-mono py-8 text-center">No run yet</p>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart data={analyzerBars} layout="vertical" margin={{ left: 72, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis type="number" domain={[-1, 1]} tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 10 }} />

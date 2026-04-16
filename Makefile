@@ -15,6 +15,7 @@ help:
 	@echo "  make db-rollback  - Rollback migrations"
 	@echo ""
 	@echo "  make test         - Run tests"
+	@echo "  make test-deriv-oauth - Local Deriv OAuth PKCE callback test"
 	@echo "  make clean        - Clean build artifacts"
 
 dev:
@@ -46,9 +47,11 @@ db-migrate:
 	@docker exec derivarena-postgres psql -U derivarena -d derivarena -tc "SELECT to_regclass('public.competitions')" | grep -q competitions || \
 		docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql
 	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/011_participant_kind.up.sql
-	@echo "✅ Migrations complete (010 base + 011 participant_kind)"
+	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/012_partner_rules.up.sql
+	@echo "✅ Migrations complete (010 + 011 + 012 partner_rules)"
 
 db-rollback:
+	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/012_partner_rules.down.sql
 	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/011_participant_kind.down.sql
 	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.down.sql
 	@echo "✅ Migrations rolled back"
@@ -76,3 +79,7 @@ clean:
 test:
 	@cd backend && go test ./... -v
 	@cd frontend && npm test
+
+# Deriv OAuth local callback (legacy oauth.deriv.com if DERIV_APP_ID set; else PKCE — see script)
+test-deriv-oauth:
+	@node scripts/test-deriv-oauth.mjs

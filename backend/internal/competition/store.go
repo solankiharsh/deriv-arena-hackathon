@@ -26,6 +26,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 // CreateCompetition creates a new competition.
 func (s *Store) CreateCompetition(ctx context.Context, req CreateCompetitionRequest) (*Competition, error) {
+	pr := req.PartnerRules
+	if len(pr) == 0 {
+		pr = json.RawMessage("{}")
+	}
 	comp := &Competition{
 		ID:              uuid.New(),
 		Name:            req.Name,
@@ -35,19 +39,20 @@ func (s *Store) CreateCompetition(ctx context.Context, req CreateCompetitionRequ
 		DurationHours:   req.DurationHours,
 		ContractTypes:   req.ContractTypes,
 		StartingBalance: req.StartingBalance,
+		PartnerRules:    pr,
 		Status:          StatusPending,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
 
 	query := `
-		INSERT INTO competitions (id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO competitions (id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, partner_rules, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	_, err := s.pool.Exec(ctx, query,
 		comp.ID, comp.Name, comp.PartnerID, comp.PartnerName, comp.AppID,
-		comp.DurationHours, comp.ContractTypes, comp.StartingBalance, comp.Status,
+		comp.DurationHours, comp.ContractTypes, comp.StartingBalance, comp.PartnerRules, comp.Status,
 		comp.CreatedAt, comp.UpdatedAt,
 	)
 	if err != nil {
@@ -60,19 +65,25 @@ func (s *Store) CreateCompetition(ctx context.Context, req CreateCompetitionRequ
 // GetCompetition retrieves a competition by ID.
 func (s *Store) GetCompetition(ctx context.Context, id uuid.UUID) (*Competition, error) {
 	query := `
-		SELECT id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, status, start_time, end_time, share_url, created_at, updated_at
+		SELECT id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, partner_rules, status, start_time, end_time, share_url, created_at, updated_at
 		FROM competitions
 		WHERE id = $1
 	`
 
 	var comp Competition
+	var pr []byte
 	err := s.pool.QueryRow(ctx, query, id).Scan(
 		&comp.ID, &comp.Name, &comp.PartnerID, &comp.PartnerName, &comp.AppID,
-		&comp.DurationHours, &comp.ContractTypes, &comp.StartingBalance, &comp.Status,
+		&comp.DurationHours, &comp.ContractTypes, &comp.StartingBalance, &pr, &comp.Status,
 		&comp.StartTime, &comp.EndTime, &comp.ShareURL, &comp.CreatedAt, &comp.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get competition: %w", err)
+	}
+	if len(pr) == 0 {
+		comp.PartnerRules = json.RawMessage("{}")
+	} else {
+		comp.PartnerRules = json.RawMessage(pr)
 	}
 
 	return &comp, nil
@@ -81,7 +92,7 @@ func (s *Store) GetCompetition(ctx context.Context, id uuid.UUID) (*Competition,
 // ListCompetitions lists competitions with optional status filter.
 func (s *Store) ListCompetitions(ctx context.Context, status string, limit int) ([]Competition, error) {
 	query := `
-		SELECT id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, status, start_time, end_time, share_url, created_at, updated_at
+		SELECT id, name, partner_id, partner_name, app_id, duration_hours, contract_types, starting_balance, partner_rules, status, start_time, end_time, share_url, created_at, updated_at
 		FROM competitions
 		WHERE ($1 = '' OR status = $1)
 		ORDER BY created_at DESC
@@ -97,12 +108,18 @@ func (s *Store) ListCompetitions(ctx context.Context, status string, limit int) 
 	var comps []Competition
 	for rows.Next() {
 		var comp Competition
+		var pr []byte
 		if err := rows.Scan(
 			&comp.ID, &comp.Name, &comp.PartnerID, &comp.PartnerName, &comp.AppID,
-			&comp.DurationHours, &comp.ContractTypes, &comp.StartingBalance, &comp.Status,
+			&comp.DurationHours, &comp.ContractTypes, &comp.StartingBalance, &pr, &comp.Status,
 			&comp.StartTime, &comp.EndTime, &comp.ShareURL, &comp.CreatedAt, &comp.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan competition: %w", err)
+		}
+		if len(pr) == 0 {
+			comp.PartnerRules = json.RawMessage("{}")
+		} else {
+			comp.PartnerRules = json.RawMessage(pr)
 		}
 		comps = append(comps, comp)
 	}
@@ -291,6 +308,69 @@ func (s *Store) ListParticipants(ctx context.Context, competitionID uuid.UUID) (
 	}
 
 	return participants, nil
+}
+
+// participantStartingBalance returns the competition starting_balance for a participant.
+func (s *Store) participantStartingBalance(ctx context.Context, participantID uuid.UUID) (decimal.Decimal, error) {
+	var sb decimal.Decimal
+	err := s.pool.QueryRow(ctx, `
+		SELECT c.starting_balance
+		FROM participants p
+		JOIN competitions c ON p.competition_id = c.id
+		WHERE p.id = $1
+	`, participantID).Scan(&sb)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("starting balance: %w", err)
+	}
+	return sb, nil
+}
+
+// SumAbsLossesTodayUTC sums |pnl| for losing closed trades whose closed_at date (UTC) is today (UTC).
+func (s *Store) SumAbsLossesTodayUTC(ctx context.Context, participantID uuid.UUID) (decimal.Decimal, error) {
+	var sum decimal.Decimal
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(ABS(pnl)), 0)
+		FROM competition_trades
+		WHERE participant_id = $1
+		  AND pnl IS NOT NULL AND pnl < 0
+		  AND closed_at IS NOT NULL
+		  AND (closed_at AT TIME ZONE 'UTC')::date = (NOW() AT TIME ZONE 'UTC')::date
+	`, participantID).Scan(&sum)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("sum losses today: %w", err)
+	}
+	return sum, nil
+}
+
+// MaxDrawdownPercentAfterIncludingPnL returns max drawdown % along the equity path after appending extraPnL
+// to all existing closed trades (ordered by closed_at, id).
+func (s *Store) MaxDrawdownPercentAfterIncludingPnL(ctx context.Context, participantID uuid.UUID, extraPnL decimal.Decimal) (decimal.Decimal, error) {
+	sb, err := s.participantStartingBalance(ctx, participantID)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT pnl FROM competition_trades
+		WHERE participant_id = $1 AND pnl IS NOT NULL AND closed_at IS NOT NULL
+		ORDER BY closed_at ASC, id ASC
+	`, participantID)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("list pnls: %w", err)
+	}
+	defer rows.Close()
+
+	var prior []decimal.Decimal
+	for rows.Next() {
+		var p decimal.Decimal
+		if err := rows.Scan(&p); err != nil {
+			return decimal.Zero, fmt.Errorf("scan pnl: %w", err)
+		}
+		prior = append(prior, p)
+	}
+	if err := rows.Err(); err != nil {
+		return decimal.Zero, err
+	}
+	return maxDrawdownPctAlongPath(sb, prior, extraPnL), nil
 }
 
 // RecordTrade records a trade for a participant.

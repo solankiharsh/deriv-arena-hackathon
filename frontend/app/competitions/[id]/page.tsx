@@ -14,17 +14,30 @@ import {
   Loader2,
   AlertTriangle,
   CalendarClock,
+  Shield,
 } from 'lucide-react';
 import {
   getCompetition,
   listParticipants,
   type Competition,
   type Participant,
+  type PartnerRules,
 } from '@/lib/derivarena-api';
 import { CompetitionDemoTradeForm } from '@/components/derivarena/CompetitionDemoTradeForm';
 import { CompetitionLeaderboard } from '@/components/derivarena/CompetitionLeaderboard';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function partnerRulesNonEmpty(pr?: PartnerRules | null): boolean {
+  if (!pr || typeof pr !== 'object') return false;
+  return !!(
+    pr.max_stake_per_contract
+    || pr.max_loss_per_day
+    || pr.max_drawdown_percent
+    || pr.market_bias
+    || (pr.data_source_weights && Object.keys(pr.data_source_weights).length > 0)
+  );
+}
 
 function statusPill(status: string) {
   const s = status.toLowerCase();
@@ -248,6 +261,64 @@ export default function CompetitionDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Partner rules (host) */}
+        {partnerRulesNonEmpty(comp.partner_rules) && (
+          <div className="border border-white/[0.08] bg-white/[0.02] p-4 mb-6">
+            <div className="flex items-center gap-2 text-text-muted mb-3">
+              <Shield className="w-3.5 h-3.5" />
+              <p className="text-[10px] font-mono uppercase tracking-wider">Partner rules</p>
+            </div>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              {comp.partner_rules?.max_stake_per_contract && (
+                <>
+                  <dt className="text-text-muted text-xs">Max stake / contract</dt>
+                  <dd className="text-text-primary font-mono tabular-nums">{comp.partner_rules.max_stake_per_contract}</dd>
+                </>
+              )}
+              {comp.partner_rules?.max_loss_per_day && (
+                <>
+                  <dt className="text-text-muted text-xs">Max loss / day</dt>
+                  <dd className="text-text-primary font-mono tabular-nums">{comp.partner_rules.max_loss_per_day}</dd>
+                </>
+              )}
+              {comp.partner_rules?.max_drawdown_percent && (
+                <>
+                  <dt className="text-text-muted text-xs">Max drawdown</dt>
+                  <dd className="text-text-primary font-mono tabular-nums">{comp.partner_rules.max_drawdown_percent}%</dd>
+                </>
+              )}
+              {comp.partner_rules?.market_bias && (
+                <>
+                  <dt className="text-text-muted text-xs">Market bias</dt>
+                  <dd className="text-text-primary font-mono tabular-nums">{comp.partner_rules.market_bias}</dd>
+                </>
+              )}
+            </dl>
+            {comp.partner_rules?.data_source_weights && Object.keys(comp.partner_rules.data_source_weights).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-text-muted mb-2">Signal weights</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(comp.partner_rules.data_source_weights).map(([k, v]) => (
+                    <span
+                      key={k}
+                      className="px-2 py-0.5 text-xs font-mono border border-white/10 bg-white/[0.04] text-text-secondary"
+                    >
+                      {k}: {v}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] text-text-muted mt-3 leading-relaxed">
+              Server-side on <code className="text-[9px]">POST …/trade</code>: max stake per contract, max loss per UTC day
+              (sum of losing trade |PnL|), and max drawdown percent vs equity path from starting balance. The Arena{' '}
+              <span className="text-white/55">Paper swarm</span> column applies the same three caps client-side when an active
+              competition with rules is loaded. Signal weights and bias
+              still blend into analyzer weights there.
+            </p>
+          </div>
+        )}
 
         {/* Timing */}
         <div className="border border-white/[0.08] bg-white/[0.02] p-4 mb-6 grid grid-cols-2 gap-4 text-sm">

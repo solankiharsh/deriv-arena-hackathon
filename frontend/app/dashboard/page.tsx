@@ -8,7 +8,8 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuthStore } from '@/store/authStore';
 import { getMyAgent } from '@/lib/api';
-import { AgentConfigPanel, AgentDataFlow, TrackedWalletsPanel, BuyTriggersPanel, EpochRewardWidget } from '@/components/dashboard';
+import { AgentConfigPanel, AgentDataFlow, EpochRewardWidget } from '@/components/dashboard';
+import { ArenaPaperPortfolio, ArenaPaperSwarmColumn } from '@/components/arena';
 
 const RisingLines = dynamic(() => import('@/components/react-bits/rising-lines'), { ssr: false });
 
@@ -24,7 +25,7 @@ function DashboardSkeleton() {
             <SkeletonBlock className="h-[420px]" />
             <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
                 <SkeletonBlock className="h-[400px]" />
-                <SkeletonBlock className="h-[400px]" />
+                <SkeletonBlock className="h-[480px]" />
             </div>
         </div>
     );
@@ -77,22 +78,26 @@ export default function DashboardPage() {
                         <p className="text-[11px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Your agent&apos;s data ingestion pipeline — each source feeds real-time signals into your strategy.</p>
                     </div>
                     <Link
-                        href="/dashboard/paper-agent"
+                        href="/arena"
                         className="text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-amber-500/35 text-amber-200/90 hover:bg-amber-500/10 transition-colors"
                     >
-                        Paper swarm lab →
+                        Arena → Portfolio
                     </Link>
                 </div>
 
                 <div className="space-y-6 animate-arena-reveal">
                     <AgentDataFlow />
-                    <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-                        <div className="space-y-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_minmax(280px,340px)] gap-6 items-start">
+                        <div className="space-y-6 min-w-0 xl:max-w-[400px]">
                             <AgentConfigPanel />
-                            <BuyTriggersPanel />
                             <EpochRewardWidget />
                         </div>
-                        <TrackedWalletsPanel />
+                        <div className="min-w-0 w-full">
+                            <ArenaPaperSwarmColumn />
+                        </div>
+                        <div className="min-w-0">
+                            <ArenaPaperPortfolio />
+                        </div>
                     </div>
                 </div>
             </div>

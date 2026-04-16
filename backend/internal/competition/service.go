@@ -70,6 +70,13 @@ func (s *Service) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	normalizedRules, err := ValidatePartnerRulesJSON(req.PartnerRules)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.PartnerRules = normalizedRules
+
 	comp, err := s.store.CreateCompetition(r.Context(), req)
 	if err != nil {
 		s.log.Error("Failed to create competition", zap.Error(err))
@@ -304,6 +311,12 @@ func (s *Service) handleRecordTrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rules := ParsePartnerRules(comp.PartnerRules)
+	if rules.MaxStakePerContract != nil && stake.GreaterThan(*rules.MaxStakePerContract) {
+		http.Error(w, "stake exceeds competition partner_rules.max_stake_per_contract", http.StatusBadRequest)
+		return
+	}
+
 	pnl, err := decimal.NewFromString(strings.TrimSpace(*body.PnL))
 	if err != nil {
 		http.Error(w, "invalid pnl", http.StatusBadRequest)
@@ -324,6 +337,32 @@ func (s *Service) handleRecordTrade(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "participant not found — join this competition first", http.StatusBadRequest)
 		return
+	}
+
+	if rules.MaxLossPerDay != nil && pnl.IsNegative() {
+		spent, err := s.store.SumAbsLossesTodayUTC(r.Context(), participant.ID)
+		if err != nil {
+			s.log.Error("record trade: sum losses today", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if spent.Add(pnl.Abs()).GreaterThan(*rules.MaxLossPerDay) {
+			http.Error(w, "trade would exceed partner_rules.max_loss_per_day", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if rules.MaxDrawdownPercent != nil {
+		dd, err := s.store.MaxDrawdownPercentAfterIncludingPnL(r.Context(), participant.ID, pnl)
+		if err != nil {
+			s.log.Error("record trade: max drawdown check", zap.Error(err))
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if dd.GreaterThan(*rules.MaxDrawdownPercent) {
+			http.Error(w, "trade would exceed partner_rules.max_drawdown_percent", http.StatusBadRequest)
+			return
+		}
 	}
 
 	tr := Trade{

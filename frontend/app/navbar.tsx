@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, LayoutList, Menu, X, Bot } from 'lucide-react';
+import { Swords, Trophy, LayoutList, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import UserAuthButton from '@/components/auth/UserAuthButton';
@@ -40,7 +40,6 @@ export default function Navbar() {
     { href: '/arena', label: 'Arena', Icon: Swords },
     { href: '/competitions', label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard', label: 'Leaderboard', Icon: Trophy },
-    { href: '/dashboard/paper-agent', label: 'Paper agent', Icon: Bot },
   ];
 
   const isActive = (href: string) => {
@@ -84,22 +83,16 @@ export default function Navbar() {
                     href={link.href}
                     className={`
                       relative flex items-center gap-1.5 px-3 py-2.5 rounded-none font-medium transition-all duration-200 text-sm whitespace-nowrap
+                      border-b-2
                       ${active
-                        ? 'text-accent-primary'
-                        : 'text-text-secondary hover:text-text-primary'
+                        ? 'text-accent-primary border-accent-primary'
+                        : 'text-text-secondary hover:text-text-primary border-transparent'
                       }
                     `}
                   >
                     <Icon className="w-4 h-4" />
                     <span>{link.label}</span>
                   </Link>
-                  {active && (
-                    <motion.div
-                      layoutId="nav-active-indicator"
-                      className="absolute bottom-0 left-2 right-2 h-[2px] bg-accent-primary"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
                 </li>
               );
             })}
@@ -108,7 +101,7 @@ export default function Navbar() {
                 href="https://developers.deriv.com/docs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
+                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap border-b-2 border-transparent"
               >
                 <span>API Docs</span>
               </a>
@@ -118,7 +111,7 @@ export default function Navbar() {
                 href="https://x.com/HarshSolan24317"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
+                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap border-b-2 border-transparent"
                 title="X / Twitter"
               >
                 <XIcon className="w-4 h-4" />

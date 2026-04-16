@@ -22,6 +22,7 @@ export { TokenConversationCard } from './TokenConversationCard';
 export { TokenConversationGrid } from './TokenConversationGrid';
 export { TokenConversationPanel } from './TokenConversationPanel';
 export { DepositPanel } from './DepositPanel';
-export { PortfolioPanel } from './PortfolioPanel';
+export { ArenaPaperPortfolio } from './ArenaPaperPortfolio';
+export { ArenaPaperSwarmColumn } from './ArenaPaperSwarmColumn';
 export { LiveActivityTicker } from './LiveActivityTicker';
 export { SpectatorCTA } from './SpectatorCTA';
