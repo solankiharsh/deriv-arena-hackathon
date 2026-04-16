@@ -1,0 +1,20 @@
+{
+  "agent": {
+    "model": "anthropic/claude-sonnet-4-20250514"
+  },
+  "mcpServers": {
+    "derivarena": {
+      "command": "node",
+      "args": ["./mcp-client/derivarena-agent.js"],
+      "env": {
+        "DERIVARENA_API_URL": "http://localhost:8090",
+        "WALLET_PRIVATE_KEY": "YOUR_WALLET_PRIVATE_KEY_HERE",
+        "X402_CHAIN": "base-sepolia",
+        "X402_CURRENCY": "USDC",
+        "MAX_AUTO_MILES_REDEEM": "5000",
+        "MAX_AUTO_USDC_SEND": "10.00"
+      },
+      "status": "active"
+    }
+  }
+}

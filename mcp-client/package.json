@@ -1,0 +1,16 @@
+{
+  "name": "derivarena-agent",
+  "version": "1.0.0",
+  "description": "MCP client for OpenClaw / Telegram agents — DerivArena competitions, Deriv Miles catalog, optional on-chain wallet",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node derivarena-agent.js"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "license": "MIT"
+}
