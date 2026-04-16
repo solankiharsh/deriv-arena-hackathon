@@ -453,6 +453,24 @@ CREATE TABLE IF NOT EXISTS instance_trades (
 CREATE INDEX IF NOT EXISTS idx_itrades_instance ON instance_trades(instance_id);
 CREATE INDEX IF NOT EXISTS idx_itrades_user ON instance_trades(user_id);
 
+-- Legacy DBs may have conversion_events from the old competition-only migration (participant_id).
+-- CREATE TABLE IF NOT EXISTS would skip the new arena shape; indexes on user_id would then fail.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'conversion_events'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'conversion_events' AND column_name = 'participant_id'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'conversion_events' AND column_name = 'user_id'
+    ) THEN
+        DROP TABLE conversion_events CASCADE;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS conversion_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES arena_users(id),
