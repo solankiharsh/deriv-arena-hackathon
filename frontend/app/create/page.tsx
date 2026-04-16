@@ -275,7 +275,7 @@ export default function CreateTemplatePage() {
             gameMode={sharingTemplate.game_mode}
             durationMinutes={
               typeof sharingTemplate.config === 'object'
-                ? (sharingTemplate.config as Record<string, unknown>).duration_minutes as number | undefined
+                ? (sharingTemplate.config as unknown as Record<string, unknown>).duration_minutes as number | undefined
                 : undefined
             }
             partnerId={user.id}

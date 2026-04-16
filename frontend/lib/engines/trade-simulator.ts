@@ -201,7 +201,7 @@ async function placeRealTrade(params: {
     const proposal = await derivTradingWS.sendProposal({
       amount: params.stake,
       contractType,
-      symbol: params.symbol ?? params.asset,
+      symbol: params.asset,
       duration: params.duration,
       durationUnit: params.durationUnit,
     });

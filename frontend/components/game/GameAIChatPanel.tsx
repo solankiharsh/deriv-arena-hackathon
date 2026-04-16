@@ -199,7 +199,7 @@ export default function GameAIChatPanel({
             {/* Quick action chips */}
             <div className="px-3 pb-2 flex flex-wrap gap-1.5">
               {QUICK_ACTIONS.map((action) => {
-                if (action.requiresPosition && !hasPosition) return null;
+                if ('requiresPosition' in action && action.requiresPosition && !hasPosition) return null;
                 const Icon = action.icon;
                 return (
                   <button

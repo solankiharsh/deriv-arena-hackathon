@@ -62,11 +62,12 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: "phantom-ledger-settings",
       version: 1,
-      migrate: (persisted: Record<string, unknown>, version: number) => {
+      migrate: (persisted: unknown, version: number) => {
+        const state = persisted as Record<string, unknown>;
         if (version === 0) {
-          return { ...persisted, arenaSoundEnabled: true };
+          return { ...state, arenaSoundEnabled: true };
         }
-        return persisted;
+        return state;
       },
     }
   )

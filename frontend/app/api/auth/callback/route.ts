@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
-  const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const origin = (
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  ).trim();
 
   if (error) {
     const desc = url.searchParams.get('error_description') || error;
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
   cookieStore.delete('pkce_verifier');
   cookieStore.delete('oauth_state');
 
-  const clientId = process.env.NEXT_PUBLIC_DERIV_APP_ID || process.env.DERIV_APP_ID;
+  const clientId = (process.env.NEXT_PUBLIC_DERIV_APP_ID || process.env.DERIV_APP_ID || '').trim();
   if (!clientId) {
     return NextResponse.redirect(`${origin}/login?error=no_app_id`);
   }
