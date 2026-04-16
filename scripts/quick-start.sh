@@ -53,10 +53,10 @@ echo -e "${GREEN}✅ PostgreSQL running${NC}"
 # Run migrations
 echo ""
 echo "2️⃣  Running database migrations..."
-docker exec derivarena-postgres psql -U derivarena -d derivarena -c "\dt" > /dev/null 2>&1 && \
-    echo -e "${YELLOW}⚠️  Database already migrated${NC}" || \
-    (docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql > /dev/null && \
-    echo -e "${GREEN}✅ Migrations complete${NC}")
+docker exec derivarena-postgres psql -U derivarena -d derivarena -tc "SELECT to_regclass('public.competitions')" | grep -q competitions || \
+    docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql > /dev/null
+docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/011_participant_kind.up.sql > /dev/null
+echo -e "${GREEN}✅ Migrations complete (010 + 011)${NC}"
 
 # Install frontend deps
 echo ""

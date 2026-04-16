@@ -180,8 +180,10 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		TraderID   string `json:"trader_id"`
-		TraderName string `json:"trader_name"`
+		TraderID          string          `json:"trader_id"`
+		TraderName        string          `json:"trader_name"`
+		ParticipantKind   string          `json:"participant_kind"`
+		Metadata          json.RawMessage `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("decode request: %v", err), http.StatusBadRequest)
@@ -192,11 +194,21 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "trader_id required", http.StatusBadRequest)
 		return
 	}
+	if len(req.Metadata) > 8192 {
+		http.Error(w, "metadata too large", http.StatusBadRequest)
+		return
+	}
+	if len(req.Metadata) > 0 && !json.Valid(req.Metadata) {
+		http.Error(w, "metadata must be valid JSON", http.StatusBadRequest)
+		return
+	}
 
 	participant, err := s.store.JoinCompetition(r.Context(), JoinCompetitionRequest{
-		CompetitionID: compID,
-		TraderID:      req.TraderID,
-		TraderName:    req.TraderName,
+		CompetitionID:   compID,
+		TraderID:        req.TraderID,
+		TraderName:      req.TraderName,
+		ParticipantKind: req.ParticipantKind,
+		Metadata:        req.Metadata,
 	})
 	if err != nil {
 		s.log.Error("Failed to join competition", zap.Error(err), zap.String("competition_id", idStr), zap.String("trader_id", req.TraderID))

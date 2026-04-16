@@ -34,10 +34,17 @@ function formatSortino(ratio: string | null | undefined): string {
 }
 
 function displayName(entry: LeaderboardEntry): string {
-  if (entry.trader_name) return entry.trader_name;
-  const tid = entry.trader_id ?? '';
-  if (tid.length > 6) return `${tid.slice(0, 6)}…`;
-  return tid || 'Trader';
+  const base = entry.trader_name
+    ? entry.trader_name
+    : (() => {
+        const tid = entry.trader_id ?? '';
+        if (tid.length > 6) return `${tid.slice(0, 6)}…`;
+        return tid || 'Trader';
+      })();
+  if (entry.participant_kind === 'agent') {
+    return `${base} · agent`;
+  }
+  return base;
 }
 
 // ── Row ───────────────────────────────────────────────────────────────────────
@@ -77,9 +84,9 @@ function Row({ entry }: { entry: LeaderboardEntry }) {
         </span>
       </td>
 
-      {/* Trades */}
+      {/* W / L / total */}
       <td className="px-4 py-3 tabular-nums text-xs text-text-muted hidden md:table-cell">
-        {entry.profitable_trades}/{entry.total_trades}
+        {entry.profitable_trades}W / {entry.loss_trades ?? 0}L / {entry.total_trades}
       </td>
     </tr>
   );
@@ -160,7 +167,7 @@ export function CompetitionLeaderboard({ competitionId }: Props) {
                   Sortino
                 </th>
                 <th className="px-4 py-2.5 font-semibold">P&amp;L</th>
-                <th className="px-4 py-2.5 font-semibold hidden md:table-cell">Win/Total</th>
+                <th className="px-4 py-2.5 font-semibold hidden md:table-cell">W / L / trades</th>
               </tr>
             </thead>
             <tbody>

@@ -73,8 +73,8 @@ Use this as the master execution list. Check items as you ship. Details and cont
 
 **Schema / API**
 
-- [ ] `participants.participant_kind` (`human` | `agent`) + optional `metadata` JSONB (policy version, display only — no secrets)
-- [ ] Join request accepts kind + validates max agents per comp (optional product rule)
+- [x] `participants.participant_kind` (`human` | `agent`) + optional `metadata` JSONB (migration `011_participant_kind`, join API)
+- [ ] Join request validates max agents per comp (optional product rule)
 - [ ] Authenticated `POST /api/competitions/{id}/trade` (or equivalent) used by **both** browser and agent worker — single code path to `RecordTrade` / stats
 
 **Agent deploy (demo)**
@@ -85,8 +85,8 @@ Use this as the master execution list. Check items as you ship. Details and cont
 
 **Compare results**
 
-- [ ] Stats or trades API exposes **win / loss counts** (and optional scratch) from `trades.pnl`
-- [ ] UI: competition page “Compare” table — pick human + agent columns (PnL, W/L, Sortino)
+- [x] Leaderboard payload includes **loss_trades** (count `pnl < 0`) + UI column `W / L / trades` on `CompetitionLeaderboard`
+- [ ] Dedicated “Compare” table / participant drill-down (PnL, Sortino side-by-side)
 
 **Single source of market context (stretch)**
 

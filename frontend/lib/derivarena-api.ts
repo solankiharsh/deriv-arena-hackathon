@@ -89,24 +89,38 @@ export type Participant = {
   trader_id: string;
   trader_name?: string;
   deriv_account_id?: string;
+  /** `"human"` | `"agent"` — default human when omitted */
+  participant_kind?: string;
+  /** Small JSON object for display (policy label, version); no secrets */
+  metadata?: Record<string, unknown>;
   joined_at: string;
 };
 
 export type JoinCompetitionInput = {
   trader_id: string;
   trader_name?: string;
+  participant_kind?: 'human' | 'agent';
+  metadata?: Record<string, unknown>;
 };
 
 export async function joinCompetition(
   competitionId: string,
   body: JoinCompetitionInput,
 ): Promise<Participant> {
+  const payload: Record<string, unknown> = {
+    trader_id: body.trader_id,
+    trader_name: body.trader_name,
+    participant_kind: body.participant_kind,
+  };
+  if (body.metadata != null) {
+    payload.metadata = body.metadata;
+  }
   const res = await fetch(
     `${apiBase()}/api/competitions/${encodeURIComponent(competitionId)}/join`,
     {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     },
   );
   return parseJson<Participant>(res);
@@ -128,13 +142,13 @@ export type LeaderboardEntry = {
   trader_id: string;
   trader_name?: string;
   deriv_account_id?: string;
+  participant_kind?: string;
+  metadata?: Record<string, unknown>;
   joined_at: string;
-  // Agent fields (for hybrid human/bot leaderboard)
-  is_agent?: boolean;
-  agent_id?: string;
   // Stats fields (null/undefined when no trades yet)
   total_trades: number;
   profitable_trades: number;
+  loss_trades: number;
   total_pnl: string;
   sortino_ratio?: string | null;
   max_drawdown?: string | null;

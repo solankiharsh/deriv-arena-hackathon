@@ -3,6 +3,8 @@
 | Document | Purpose |
 |----------|---------|
 | [ROADMAP.md](./ROADMAP.md) | Full product / hackathon plan and technical depth |
+| [HUMANS_AND_AGENTS.md](./HUMANS_AND_AGENTS.md) | Humans + bots in one competition; single trade path; compare results |
+| [SATORI_X_CROSSWALK.md](./SATORI_X_CROSSWALK.md) | Satori-X (Traders View) patterns → DerivArena |
 | [PHASE_CHECKLIST.md](./PHASE_CHECKLIST.md) | Master delivery checklist (all phases) |
 | [DERIV_V2_API_IMPLEMENTATION.md](./DERIV_V2_API_IMPLEMENTATION.md) | **Integrators:** PAT/OTP flow, reference script, what to build next |
 | [DERIV_PUBLIC_WEBSOCKET.md](./DERIV_PUBLIC_WEBSOCKET.md) | Public WS verification and payload notes |

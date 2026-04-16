@@ -42,12 +42,14 @@ db-down:
 	@echo "✅ PostgreSQL stopped"
 
 db-migrate:
-	@docker exec derivarena-postgres psql -U derivarena -d derivarena -c "\dt" > /dev/null 2>&1 && \
-		echo "✅ Database already migrated" || \
-		(docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql && \
-		echo "✅ Migrations complete")
+	@docker exec derivarena-postgres psql -U derivarena -d derivarena -c "SELECT 1" > /dev/null 2>&1 || (echo "❌ Start PostgreSQL first (make db-up)" && exit 1)
+	@docker exec derivarena-postgres psql -U derivarena -d derivarena -tc "SELECT to_regclass('public.competitions')" | grep -q competitions || \
+		docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql
+	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/011_participant_kind.up.sql
+	@echo "✅ Migrations complete (010 base + 011 participant_kind)"
 
 db-rollback:
+	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/011_participant_kind.down.sql
 	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.down.sql
 	@echo "✅ Migrations rolled back"
 

@@ -2,10 +2,14 @@ package competition
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
@@ -160,25 +164,50 @@ func (s *Store) EndCompetition(ctx context.Context, id uuid.UUID) error {
 
 // JoinCompetition adds a participant to a competition.
 func (s *Store) JoinCompetition(ctx context.Context, req JoinCompetitionRequest) (*Participant, error) {
+	kind := strings.TrimSpace(strings.ToLower(req.ParticipantKind))
+	if kind == "" {
+		kind = ParticipantHuman
+	}
+	if kind != ParticipantHuman && kind != ParticipantAgent {
+		return nil, fmt.Errorf("participant_kind must be %q or %q", ParticipantHuman, ParticipantAgent)
+	}
+
+	meta := req.Metadata
+	if len(meta) == 0 {
+		meta = json.RawMessage(`{}`)
+	}
+	if len(meta) > 8192 {
+		return nil, fmt.Errorf("metadata exceeds 8192 bytes")
+	}
+	if !json.Valid(meta) {
+		return nil, fmt.Errorf("metadata must be valid JSON")
+	}
+
 	participant := &Participant{
-		ID:            uuid.New(),
-		CompetitionID: req.CompetitionID,
-		TraderID:      req.TraderID,
-		TraderName:    req.TraderName,
-		JoinedAt:      time.Now(),
+		ID:              uuid.New(),
+		CompetitionID:   req.CompetitionID,
+		TraderID:        req.TraderID,
+		TraderName:      req.TraderName,
+		ParticipantKind: kind,
+		Metadata:        meta,
+		JoinedAt:        time.Now(),
 	}
 
 	query := `
-		INSERT INTO participants (id, competition_id, trader_id, trader_name, joined_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO participants (id, competition_id, trader_id, trader_name, participant_kind, metadata, joined_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (competition_id, trader_id) DO NOTHING
-		RETURNING id
+		RETURNING id, participant_kind, metadata
 	`
 
 	err := s.pool.QueryRow(ctx, query,
-		participant.ID, participant.CompetitionID, participant.TraderID, participant.TraderName, participant.JoinedAt,
-	).Scan(&participant.ID)
+		participant.ID, participant.CompetitionID, participant.TraderID, participant.TraderName,
+		participant.ParticipantKind, participant.Metadata, participant.JoinedAt,
+	).Scan(&participant.ID, &participant.ParticipantKind, &participant.Metadata)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return s.getParticipantByCompetitionAndTrader(ctx, req.CompetitionID, req.TraderID)
+		}
 		return nil, fmt.Errorf("join competition: %w", err)
 	}
 
@@ -205,14 +234,14 @@ func (s *Store) JoinCompetition(ctx context.Context, req JoinCompetitionRequest)
 // GetParticipant retrieves a participant by ID.
 func (s *Store) GetParticipant(ctx context.Context, id uuid.UUID) (*Participant, error) {
 	query := `
-		SELECT id, competition_id, trader_id, trader_name, deriv_account_id, joined_at
+		SELECT id, competition_id, trader_id, trader_name, deriv_account_id, participant_kind, metadata, joined_at
 		FROM participants
 		WHERE id = $1
 	`
 
 	var p Participant
 	err := s.pool.QueryRow(ctx, query, id).Scan(
-		&p.ID, &p.CompetitionID, &p.TraderID, &p.TraderName, &p.DerivAccountID, &p.JoinedAt,
+		&p.ID, &p.CompetitionID, &p.TraderID, &p.TraderName, &p.DerivAccountID, &p.ParticipantKind, &p.Metadata, &p.JoinedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get participant: %w", err)
@@ -221,10 +250,26 @@ func (s *Store) GetParticipant(ctx context.Context, id uuid.UUID) (*Participant,
 	return &p, nil
 }
 
+func (s *Store) getParticipantByCompetitionAndTrader(ctx context.Context, competitionID uuid.UUID, traderID string) (*Participant, error) {
+	query := `
+		SELECT id, competition_id, trader_id, trader_name, deriv_account_id, participant_kind, metadata, joined_at
+		FROM participants
+		WHERE competition_id = $1 AND trader_id = $2
+	`
+	var p Participant
+	err := s.pool.QueryRow(ctx, query, competitionID, traderID).Scan(
+		&p.ID, &p.CompetitionID, &p.TraderID, &p.TraderName, &p.DerivAccountID, &p.ParticipantKind, &p.Metadata, &p.JoinedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("participant already joined or missing: %w", err)
+	}
+	return &p, nil
+}
+
 // ListParticipants lists all participants in a competition.
 func (s *Store) ListParticipants(ctx context.Context, competitionID uuid.UUID) ([]Participant, error) {
 	query := `
-		SELECT id, competition_id, trader_id, trader_name, deriv_account_id, joined_at
+		SELECT id, competition_id, trader_id, trader_name, deriv_account_id, participant_kind, metadata, joined_at
 		FROM participants
 		WHERE competition_id = $1
 		ORDER BY joined_at ASC
@@ -239,7 +284,7 @@ func (s *Store) ListParticipants(ctx context.Context, competitionID uuid.UUID) (
 	var participants []Participant
 	for rows.Next() {
 		var p Participant
-		if err := rows.Scan(&p.ID, &p.CompetitionID, &p.TraderID, &p.TraderName, &p.DerivAccountID, &p.JoinedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.CompetitionID, &p.TraderID, &p.TraderName, &p.DerivAccountID, &p.ParticipantKind, &p.Metadata, &p.JoinedAt); err != nil {
 			return nil, fmt.Errorf("scan participant: %w", err)
 		}
 		participants = append(participants, p)
@@ -311,7 +356,8 @@ func (s *Store) updateStats(ctx context.Context, participantID uuid.UUID) error 
 func (s *Store) GetLeaderboard(ctx context.Context, competitionID uuid.UUID) ([]LeaderboardEntry, error) {
 	query := `
 		SELECT
-			p.id, p.competition_id, p.trader_id, p.trader_name, p.deriv_account_id, p.joined_at,
+			p.id, p.competition_id, p.trader_id, p.trader_name, p.deriv_account_id, p.participant_kind, p.metadata, p.joined_at,
+			(SELECT COUNT(*)::int FROM competition_trades t WHERE t.participant_id = p.id AND t.pnl IS NOT NULL AND t.pnl < 0) AS loss_trades,
 			s.participant_id, s.total_trades, s.profitable_trades, s.total_pnl, s.sortino_ratio, s.max_drawdown, s.current_balance, s.last_updated,
 			ROW_NUMBER() OVER (ORDER BY s.sortino_ratio DESC NULLS LAST, s.total_pnl DESC) as rank
 		FROM participants p
@@ -330,7 +376,8 @@ func (s *Store) GetLeaderboard(ctx context.Context, competitionID uuid.UUID) ([]
 	for rows.Next() {
 		var entry LeaderboardEntry
 		if err := rows.Scan(
-			&entry.ID, &entry.CompetitionID, &entry.TraderID, &entry.TraderName, &entry.DerivAccountID, &entry.JoinedAt,
+			&entry.ID, &entry.CompetitionID, &entry.TraderID, &entry.TraderName, &entry.DerivAccountID, &entry.ParticipantKind, &entry.Metadata, &entry.JoinedAt,
+			&entry.Stats.LossTrades,
 			&entry.Stats.ParticipantID, &entry.Stats.TotalTrades, &entry.Stats.ProfitableTrades, &entry.Stats.TotalPnL,
 			&entry.Stats.SortinoRatio, &entry.Stats.MaxDrawdown, &entry.Stats.CurrentBalance, &entry.Stats.LastUpdated,
 			&entry.Rank,

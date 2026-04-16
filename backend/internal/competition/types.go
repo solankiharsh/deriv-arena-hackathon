@@ -1,6 +1,7 @@
 package competition
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,14 +33,21 @@ const (
 	StatusCancelled = "cancelled"
 )
 
+const (
+	ParticipantHuman = "human"
+	ParticipantAgent = "agent"
+)
+
 // Participant represents a trader in a competition.
 type Participant struct {
-	ID             uuid.UUID `json:"id"`
-	CompetitionID  uuid.UUID `json:"competition_id"`
-	TraderID       string    `json:"trader_id"`
-	TraderName     string    `json:"trader_name,omitempty"`
-	DerivAccountID string    `json:"deriv_account_id,omitempty"`
-	JoinedAt       time.Time `json:"joined_at"`
+	ID              uuid.UUID       `json:"id"`
+	CompetitionID   uuid.UUID       `json:"competition_id"`
+	TraderID        string          `json:"trader_id"`
+	TraderName      string          `json:"trader_name,omitempty"`
+	DerivAccountID  string          `json:"deriv_account_id,omitempty"`
+	ParticipantKind string          `json:"participant_kind"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	JoinedAt        time.Time       `json:"joined_at"`
 }
 
 // Trade represents a single trade within a competition.
@@ -62,6 +70,7 @@ type Stats struct {
 	ParticipantID    uuid.UUID        `json:"participant_id"`
 	TotalTrades      int              `json:"total_trades"`
 	ProfitableTrades int              `json:"profitable_trades"`
+	LossTrades       int              `json:"loss_trades"`
 	TotalPnL         decimal.Decimal  `json:"total_pnl"`
 	SortinoRatio     *decimal.Decimal `json:"sortino_ratio,omitempty"`
 	MaxDrawdown      *decimal.Decimal `json:"max_drawdown,omitempty"`
@@ -89,9 +98,11 @@ type CreateCompetitionRequest struct {
 
 // JoinCompetitionRequest is the request to join a competition.
 type JoinCompetitionRequest struct {
-	CompetitionID uuid.UUID `json:"competition_id"`
-	TraderID      string    `json:"trader_id"`
-	TraderName    string    `json:"trader_name,omitempty"`
+	CompetitionID   uuid.UUID       `json:"competition_id"`
+	TraderID        string          `json:"trader_id"`
+	TraderName      string          `json:"trader_name,omitempty"`
+	ParticipantKind string          `json:"participant_kind,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
 }
 
 // ConversionEvent tracks conversion nudges and outcomes.

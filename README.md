@@ -8,6 +8,7 @@ Converts demo traders into depositors through competitive Sortino-ranked leaderb
 
 - Plan and technical narrative: [docs/ROADMAP.md](docs/ROADMAP.md)
 - **Humans + agents in the same competition** (integration plan, W/L compare, deploy path): [docs/HUMANS_AND_AGENTS.md](docs/HUMANS_AND_AGENTS.md)
+- **Satori-X (Traders View) → DerivArena** pattern crosswalk: [docs/SATORI_X_CROSSWALK.md](docs/SATORI_X_CROSSWALK.md)
 - Master delivery checklist (all phases): [docs/PHASE_CHECKLIST.md](docs/PHASE_CHECKLIST.md)
 - **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
 - Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)

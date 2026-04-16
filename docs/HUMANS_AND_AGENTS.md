@@ -129,6 +129,7 @@ Earlier external critique claimed **“no analyzers in repo”** — that is **o
 
 ## 9. Related docs
 
+- [SATORI_X_CROSSWALK.md](./SATORI_X_CROSSWALK.md) — Traders View (Satori-X) patterns mapped to DerivArena (signals, calendar, symbol registry).
 - [ROADMAP.md](./ROADMAP.md) — Tier 2 “AI Agent Competitors” (archetypes).
 - [PHASE_CHECKLIST.md](./PHASE_CHECKLIST.md) — Phase 2b checklist for dual participants.
 - [DERIV_V2_API_IMPLEMENTATION.md](./DERIV_V2_API_IMPLEMENTATION.md) — Auth + trade sequence for humans and workers.
