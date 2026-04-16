@@ -21,5 +21,3 @@ frontend/tsconfig.tsbuildinfo
 # IDE
 .idea/
 .vscode/
-
-docs/
