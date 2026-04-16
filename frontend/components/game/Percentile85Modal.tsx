@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, ExternalLink, X, TrendingUp } from 'lucide-react';
 import GradientText from '@/components/reactbits/GradientText';
+import { buildDestinationPath, buildPartnerTrackingUrl } from '@/lib/partner-tracking';
 
 interface Percentile85ModalProps {
   isOpen: boolean;
@@ -22,12 +23,21 @@ export default function Percentile85Modal({
   instanceId,
 }: Percentile85ModalProps) {
   const handleDerivRedirect = () => {
-    const params = new URLSearchParams();
-    if (partnerId) params.set('ref', partnerId);
-    if (templateId) params.set('campaign', templateId);
-    if (instanceId) params.set('instance', instanceId);
+    const derivUrl = partnerId
+      ? buildPartnerTrackingUrl({
+          affiliateId: partnerId,
+          partnerId,
+          destinationPath: buildDestinationPath('https://deriv.com/signup', {
+            campaign: templateId ?? undefined,
+            instance: instanceId ?? undefined,
+          }),
+          source: 'direct',
+        })
+      : buildDestinationPath('https://deriv.com/signup', {
+          campaign: templateId ?? undefined,
+          instance: instanceId ?? undefined,
+        });
 
-    const derivUrl = `https://deriv.com/signup?${params.toString()}`;
     window.open(derivUrl, '_blank', 'noopener,noreferrer');
   };
 

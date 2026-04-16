@@ -30,7 +30,7 @@ export async function GET() {
         COUNT(DISTINCT CASE WHEN ce.event_type = 'registration'  THEN ce.user_id END) AS registrations,
         COUNT(DISTINCT CASE WHEN ce.event_type = 'first_trade'   THEN ce.user_id END) AS first_trades
       FROM partner_referral_clicks r
-      LEFT JOIN conversion_events ce
+      LEFT JOIN arena_conversion_events ce
         ON ce.partner_id = r.partner_id AND ce.user_id = r.user_id
       WHERE r.partner_id = $1
       GROUP BY r.source
@@ -51,12 +51,12 @@ export async function GET() {
         r.source,
         r.created_at AS clicked_at,
         COALESCE(
-          (SELECT ce.event_type FROM conversion_events ce
+          (SELECT ce.event_type FROM arena_conversion_events ce
            WHERE ce.user_id = r.user_id AND ce.partner_id = r.partner_id
            ORDER BY ce.created_at DESC LIMIT 1),
           'click'
         ) AS last_event,
-        (SELECT COUNT(*) FROM conversion_events ce
+        (SELECT COUNT(*) FROM arena_conversion_events ce
          WHERE ce.user_id = r.user_id AND ce.partner_id = r.partner_id
         )::text AS events_count
       FROM partner_referral_clicks r

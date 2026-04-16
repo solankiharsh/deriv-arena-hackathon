@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown, Loader2, ChevronDown, XCircle, Search } from "lucide-react";
 import { useTradeStore } from "@/lib/stores/trade-store";
@@ -49,6 +50,8 @@ export function TradeTicket() {
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
+  const [portalReady, setPortalReady] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number } | null>(null);
   const [availableContracts, setAvailableContracts] = useState<ContractAvailability[]>([]);
   const [proposalPreview, setProposalPreview] = useState<ProposalPreview | null>(null);
   const [marketHours, setMarketHours] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export function TradeTicket() {
   const [intelError, setIntelError] = useState<string | null>(null);
   const buyButtonRef = useRef<HTMLButtonElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const pickerPanelRef = useRef<HTMLDivElement>(null);
 
   // ── Phantom signal tracking refs ──
   const formOpenedAt = useRef(Date.now());
@@ -95,6 +99,51 @@ export function TradeTicket() {
     }
     return groups;
   }, [availableSymbols, assetSearch]);
+
+  const updateDropdownPosition = useCallback(() => {
+    const rect = pickerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setDropdownStyle({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!assetPickerOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (pickerRef.current?.contains(target) || pickerPanelRef.current?.contains(target)) {
+        return;
+      }
+      setAssetPickerOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [assetPickerOpen]);
+
+  useLayoutEffect(() => {
+    if (!assetPickerOpen) return;
+
+    updateDropdownPosition();
+
+    const syncPosition = () => updateDropdownPosition();
+    window.addEventListener("resize", syncPosition);
+    window.addEventListener("scroll", syncPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", syncPosition);
+      window.removeEventListener("scroll", syncPosition, true);
+    };
+  }, [assetPickerOpen, updateDropdownPosition]);
 
   // Build the current capture signal snapshot
   const buildSignals = useCallback(
@@ -350,6 +399,85 @@ export function TradeTicket() {
     };
   }, [selectedAsset, selectedDirection, selectedStake, selectedDuration, selectedDurationUnit]);
 
+  const assetDropdown = (
+    <AnimatePresence>
+      {assetPickerOpen && portalReady && dropdownStyle && (
+        <motion.div
+          ref={pickerPanelRef}
+          initial={{ opacity: 0, y: -4, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+          transition={{ duration: 0.15 }}
+          className="fixed z-[9999] rounded-xl shadow-2xl max-h-72 flex flex-col overflow-hidden border border-[var(--color-border-hover)]"
+          style={{
+            top: dropdownStyle.top,
+            left: dropdownStyle.left,
+            width: dropdownStyle.width,
+            background: "var(--color-bg-elevated)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          <div className="p-2 border-b border-[var(--color-border)]">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <input
+                type="text"
+                autoFocus
+                value={assetSearch}
+                onChange={(e) => setAssetSearch(e.target.value)}
+                placeholder="Search symbols..."
+                className="w-full h-8 pl-7 pr-3 rounded-lg bg-white/5 border border-[var(--color-border)] text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-phantom)]/50 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {availableSymbols.length === 0 ? (
+              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
+                Connecting to Deriv to load symbols...
+              </div>
+            ) : groupedSymbols.size === 0 ? (
+              <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
+                No symbols match &ldquo;{assetSearch}&rdquo;
+              </div>
+            ) : (
+              Array.from(groupedSymbols.entries()).map(([market, syms]) => (
+                <div key={market}>
+                  <div
+                    className="px-3 py-1.5 text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest sticky top-0"
+                    style={{ background: "var(--color-bg-tertiary)" }}
+                  >
+                    {market}
+                  </div>
+                  {syms.map((sym) => (
+                    <button
+                      key={sym.symbol}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAsset(sym.symbol);
+                        setAssetPickerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-white/5 transition-colors ${
+                        sym.symbol === selectedAsset ? "bg-[var(--color-phantom-dim)]" : ""
+                      }`}
+                    >
+                      <span className="text-xs font-medium text-[var(--color-text-primary)]">
+                        {sym.display_name}
+                      </span>
+                      <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
+                        {sym.symbol}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <div
       className="glass rounded-2xl p-5 h-full card-hover relative overflow-hidden"
@@ -493,74 +621,6 @@ export function TradeTicket() {
                 </div>
               </button>
 
-              <AnimatePresence>
-                {assetPickerOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute z-50 left-0 right-0 top-full mt-1 rounded-xl shadow-2xl max-h-72 flex flex-col overflow-hidden border border-[var(--color-border-hover)]"
-                    style={{ background: "var(--color-bg-elevated)", backdropFilter: "blur(16px)" }}
-                  >
-                    {/* Search */}
-                    <div className="p-2 border-b border-[var(--color-border)]">
-                      <div className="relative">
-                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                        <input
-                          type="text"
-                          autoFocus
-                          value={assetSearch}
-                          onChange={(e) => setAssetSearch(e.target.value)}
-                          placeholder="Search symbols..."
-                          className="w-full h-8 pl-7 pr-3 rounded-lg bg-white/5 border border-[var(--color-border)] text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-phantom)]/50 transition-colors"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Symbol list */}
-                    <div className="overflow-y-auto flex-1">
-                      {availableSymbols.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                          Connecting to Deriv to load symbols...
-                        </div>
-                      ) : groupedSymbols.size === 0 ? (
-                        <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-                          No symbols match &ldquo;{assetSearch}&rdquo;
-                        </div>
-                      ) : (
-                        Array.from(groupedSymbols.entries()).map(([market, syms]) => (
-                          <div key={market}>
-                            <div className="px-3 py-1.5 text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest sticky top-0" style={{ background: "var(--color-bg-tertiary)" }}>
-                              {market}
-                            </div>
-                            {syms.map((sym) => (
-                              <button
-                                key={sym.symbol}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedAsset(sym.symbol);
-                                  setAssetPickerOpen(false);
-                                }}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-left hover:bg-white/5 transition-colors ${
-                                  sym.symbol === selectedAsset ? "bg-[var(--color-phantom-dim)]" : ""
-                                }`}
-                              >
-                                <span className="text-xs font-medium text-[var(--color-text-primary)]">
-                                  {sym.display_name}
-                                </span>
-                                <span className="text-[10px] font-mono text-[var(--color-text-muted)]">
-                                  {sym.symbol}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
             {/* Direction */}
@@ -741,6 +801,7 @@ export function TradeTicket() {
           </motion.div>
         )}
       </AnimatePresence>
+      {portalReady ? createPortal(assetDropdown, document.body) : null}
     </div>
   );
 }

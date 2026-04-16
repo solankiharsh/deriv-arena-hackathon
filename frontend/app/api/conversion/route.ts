@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const event = await queryOne<ConversionEvent>(
-    `INSERT INTO conversion_events (user_id, partner_id, template_id, instance_id, event_type, percentile_at_trigger, metadata)
+    `INSERT INTO arena_conversion_events (user_id, partner_id, template_id, instance_id, event_type, percentile_at_trigger, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [

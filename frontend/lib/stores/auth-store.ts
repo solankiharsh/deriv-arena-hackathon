@@ -8,6 +8,7 @@ interface AuthState {
   appId: string;
   accountInfo: AuthorizeResponse["authorize"] | null;
   isDemoMode: boolean;
+  // Provider/account balance from Deriv. Game/session balance should be derived separately.
   balance: number;
   currency: string;
   isConnected: boolean;

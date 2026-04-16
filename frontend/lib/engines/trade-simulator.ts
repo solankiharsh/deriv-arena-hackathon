@@ -13,6 +13,10 @@ import { fireArenaEvent } from "@/lib/engines/arena-events";
 import { onUserTradePlaced, onUserTradeResolved } from "@/lib/engines/anti-you-engine";
 import { evaluateAndCapture } from "@/lib/engines/phantom-tracker";
 import {
+  resolveEarlySellSettlement,
+  resolveExpirySettlement,
+} from "@/lib/trade-settlement";
+import {
   calculateEntryTilt,
   calculateExitTilt,
   applyTiltDecay,
@@ -523,30 +527,33 @@ async function resolveSimulatedTrade(): Promise<void> {
 
   const exitSpot = position?.currentSpot ?? sim.entrySpot;
   const hasReliableEntry = sim.entrySpot > 0;
-  const won = hasReliableEntry
+  const wonAtExpiry = hasReliableEntry
     ? sim.direction === "CALL"
       ? exitSpot > sim.entrySpot
       : exitSpot < sim.entrySpot
     : false;
-  const status = hasReliableEntry ? (won ? "won" : "lost") : "sold";
-  const pnl = hasReliableEntry ? (won ? sim.stake * 0.85 : -sim.stake) : 0;
+  const settlement = resolveExpirySettlement({
+    hasReliableEntry,
+    won: wonAtExpiry,
+    stake: sim.stake,
+  });
 
   tradeStore.updateTrade(sim.id, {
     exitSpot,
-    pnl,
+    pnl: settlement.pnl,
     closedAt: Date.now(),
-    status,
+    status: settlement.status,
     heldToExpiry: true,
   });
 
-  if (status === "won" || status === "lost") {
-    tradeStore.recordTradeResult(won, pnl);
+  if (settlement.status === "won" || settlement.status === "lost") {
+    tradeStore.recordTradeResult(settlement.won, settlement.pnl);
   }
   tradeStore.setActivePosition(null);
 
   // Update tilt based on trade outcome — held to expiry = disciplined
-  if (status === "won" || status === "lost") {
-    onTradeResolved(won, true);
+  if (settlement.status === "won" || settlement.status === "lost") {
+    onTradeResolved(settlement.won, true);
   }
 
   const sessionId = useSessionStore.getState().currentSession?.id ?? "demo";
@@ -566,12 +573,12 @@ async function resolveSimulatedTrade(): Promise<void> {
       stake: sim.stake,
       entrySpot: sim.entrySpot,
       exitSpot,
-      pnl,
+      pnl: settlement.pnl,
       duration: sim.duration,
       durationUnit: sim.durationUnit,
       timestamp: sim.startTime,
       closedAt: Date.now(),
-      status,
+      status: settlement.status,
       tiltScoreAtEntry,
       wasRevengeFlag,
       heldToExpiry: true,
@@ -579,11 +586,11 @@ async function resolveSimulatedTrade(): Promise<void> {
     .catch(() => {});
 
   // Notify Anti-You engine
-  if (status === "won" || status === "lost") {
+  if (settlement.status === "won" || settlement.status === "lost") {
     onUserTradeResolved({
       id: sim.id,
-      won,
-      pnl,
+      won: settlement.won,
+      pnl: settlement.pnl,
       exitSpot,
       heldToExpiry: true,
       durationMs: Date.now() - sim.startTime,
@@ -592,12 +599,12 @@ async function resolveSimulatedTrade(): Promise<void> {
 
   // Fire arena events based on trade result
   const tiltScore = useTiltStore.getState().score;
-  if (status === "won") {
+  if (settlement.status === "won") {
     fireArenaEvent("POW", sessionId);
     if (tiltScore < 30 && sim.duration >= 3) {
       setTimeout(() => fireArenaEvent("EXECUTION_PERFECT", sessionId), 500);
     }
-  } else if (status === "lost") {
+  } else if (settlement.status === "lost") {
     if (tiltScore > 60) {
       fireArenaEvent("TILT_DETECTED", sessionId);
     } else {
@@ -621,29 +628,27 @@ export async function sellSimulatedTradeEarly(): Promise<void> {
   const exitSpot = position?.currentSpot ?? sim.entrySpot;
   const hasReliableEntry = sim.entrySpot > 0;
   const currentPnl = hasReliableEntry ? (position?.currentPnl ?? 0) : 0;
-
-  // Early sell: you get whatever the current mark-to-market P&L is, with a haircut
-  const pnl = currentPnl > 0 ? currentPnl * 0.7 : currentPnl;
-
-  const earlyWon = hasReliableEntry && pnl >= 0;
-  const status = hasReliableEntry ? (earlyWon ? "won" : "lost") : "sold";
+  const settlement = resolveEarlySellSettlement({
+    hasReliableEntry,
+    currentPnl,
+  });
 
   tradeStore.updateTrade(sim.id, {
     exitSpot,
-    pnl,
+    pnl: settlement.pnl,
     closedAt: Date.now(),
-    status,
+    status: settlement.status,
     heldToExpiry: false,
   });
 
-  if (status === "won" || status === "lost") {
-    tradeStore.recordTradeResult(earlyWon, pnl);
+  if (settlement.status === "won" || settlement.status === "lost") {
+    tradeStore.recordTradeResult(settlement.won, settlement.pnl);
   }
   tradeStore.setActivePosition(null);
 
   // Update tilt based on early exit — heldToExpiry = false
-  if (status === "won" || status === "lost") {
-    onTradeResolved(earlyWon, false);
+  if (settlement.status === "won" || settlement.status === "lost") {
+    onTradeResolved(settlement.won, false);
   }
 
   const sessionId = useSessionStore.getState().currentSession?.id ?? "demo";
@@ -663,12 +668,12 @@ export async function sellSimulatedTradeEarly(): Promise<void> {
       stake: sim.stake,
       entrySpot: sim.entrySpot,
       exitSpot,
-      pnl,
+      pnl: settlement.pnl,
       duration: sim.duration,
       durationUnit: sim.durationUnit,
       timestamp: sim.startTime,
       closedAt: Date.now(),
-      status,
+      status: settlement.status,
       tiltScoreAtEntry,
       wasRevengeFlag,
       heldToExpiry: false,
@@ -676,11 +681,11 @@ export async function sellSimulatedTradeEarly(): Promise<void> {
     .catch(() => {});
 
   // Notify Anti-You engine
-  if (status === "won" || status === "lost") {
+  if (settlement.status === "won" || settlement.status === "lost") {
     onUserTradeResolved({
       id: sim.id,
-      won: pnl >= 0,
-      pnl,
+      won: settlement.won,
+      pnl: settlement.pnl,
       exitSpot,
       heldToExpiry: false,
       durationMs: Date.now() - sim.startTime,
@@ -689,11 +694,11 @@ export async function sellSimulatedTradeEarly(): Promise<void> {
 
   // Fire arena events for early sell
   const tiltScoreNow = useTiltStore.getState().score;
-  if (status === "won") {
+  if (settlement.status === "won") {
     fireArenaEvent("POW", sessionId);
-  } else if (status === "lost" && tiltScoreNow > 60) {
+  } else if (settlement.status === "lost" && tiltScoreNow > 60) {
     fireArenaEvent("TILT_DETECTED", sessionId);
-  } else if (status === "lost") {
+  } else if (settlement.status === "lost") {
     fireArenaEvent("BIAS_DETECTED", sessionId);
   }
 

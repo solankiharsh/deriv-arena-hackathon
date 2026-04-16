@@ -1,5 +1,7 @@
 -- DerivArena Competition Schema
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE competitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,

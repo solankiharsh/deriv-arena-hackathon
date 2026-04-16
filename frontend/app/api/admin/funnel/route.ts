@@ -10,7 +10,7 @@ export async function GET() {
 
   const funnel = await query<{ event_type: string; count: string }>(`
     SELECT event_type, COUNT(*) as count
-    FROM conversion_events
+    FROM arena_conversion_events
     GROUP BY event_type
     ORDER BY
       CASE event_type
@@ -23,7 +23,7 @@ export async function GET() {
 
   const dailyConversions = await query<{ day: string; count: string }>(`
     SELECT DATE(created_at) as day, COUNT(*) as count
-    FROM conversion_events
+    FROM arena_conversion_events
     WHERE created_at > now() - INTERVAL '30 days'
     GROUP BY DATE(created_at)
     ORDER BY day

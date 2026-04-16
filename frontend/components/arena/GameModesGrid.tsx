@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Plus, Filter, Loader2 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
+import { useAuthNudge } from '@/lib/stores/auth-nudge-store';
 import type { GameTemplate, GameMode } from '@/lib/arena-types';
 import { GAME_MODE_LABELS } from '@/lib/arena-types';
 import GameModeCard from './GameModeCard';
@@ -44,6 +45,13 @@ export default function GameModesGrid() {
   }, [filter]);
 
   const handlePlay = async (template: GameTemplate) => {
+    if (!user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[auth-nudge] blocked handlePlay', { templateId: template.id });
+      }
+      useAuthNudge.getState().nudge();
+      return;
+    }
     setCreating(template.id);
     try {
       const { instance } = await arenaApi.instances.create(template.slug);

@@ -162,7 +162,7 @@ export default function MarketplacePage() {
                       </div>
                     </div>
 
-                    {item.stock_quantity !== null && item.stock_quantity !== undefined && (
+                    {item.stock_quantity != null && (
                       <div className="text-xs text-muted-foreground mb-3">
                         {item.stock_quantity > 0 ? (
                           <span>{item.stock_quantity} in stock</span>
@@ -174,10 +174,10 @@ export default function MarketplacePage() {
 
                     <Button
                       onClick={() => handleRedeemClick(item)}
-                      disabled={!item.available || (item.stock_quantity !== null && item.stock_quantity <= 0)}
+                      disabled={!item.available || (item.stock_quantity != null && item.stock_quantity <= 0)}
                       className="w-full"
                     >
-                      {!item.available ? 'Unavailable' : (item.stock_quantity !== null && item.stock_quantity <= 0) ? 'Out of Stock' : 'Redeem'}
+                      {!item.available ? 'Unavailable' : (item.stock_quantity != null && item.stock_quantity <= 0) ? 'Out of Stock' : 'Redeem'}
                     </Button>
                   </div>
                 </div>

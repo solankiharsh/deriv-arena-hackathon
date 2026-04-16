@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Trophy, Bot, Twitter, MessageCircle, Gem, BookOpen, Wallet, Lock, type LucideIcon } from 'lucide-react';
+import { Trophy, Bot, Users, Play, Target, Swords, Share2, UserPlus, type LucideIcon } from 'lucide-react';
 
 interface QuestsLeaderboardsDemoProps {
   className?: string;
@@ -78,10 +78,10 @@ function formatPoints(value: number): string {
   return value.toString();
 }
 
-// USDC Pool Counter for Rewards View
-function USDCPoolCounter({ isActive }: { isActive: boolean }): ReactNode {
+// Deriv MILES pool counter for rewards view
+function DerivMilesPoolCounter({ isActive }: { isActive: boolean }): ReactNode {
   const poolAmount = useCountUp(1000, isActive, 2000);
-  return <>{poolAmount.toLocaleString()} <USDCIcon className="inline-block h-8 w-8 lg:h-10 lg:w-10 -mt-1 ml-1" /></>;
+  return <>{poolAmount.toLocaleString()} Deriv MILES</>;
 }
 
 // SVG Icons
@@ -106,14 +106,6 @@ function StarIcon({ className }: { className?: string }): ReactNode {
     </svg>
   );
 }
-
-function USDCIcon({ className }: { className?: string }): ReactNode {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src="/icons/usdc.png" alt="USDC" className={className} />
-  );
-}
-
 
 // Toast notification component
 function Toast({
@@ -157,7 +149,7 @@ function Toast({
             </motion.div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-gray-400">Claimed!</span>
-              <span className="text-accent-primary text-lg font-bold">+{displayPoints} PTS</span>
+              <span className="text-accent-primary text-lg font-bold">+{displayPoints} Deriv MILES</span>
             </div>
           </motion.div>
         </motion.div>
@@ -202,6 +194,14 @@ interface ClimbEntry {
   name: string;
   points: number;
   isYou?: boolean;
+}
+
+interface QuestCardData {
+  icon: LucideIcon;
+  title: string;
+  shortTitle: string;
+  points: number;
+  desc: string;
 }
 
 const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
@@ -273,6 +273,16 @@ const AVATAR_COLORS = [
   'border-purple-400/30 text-purple-400/70',
   'border-emerald-400/30 text-emerald-400/70',
   'border-cyan-400/30 text-cyan-400/70',
+];
+
+const REAL_QUESTS: QuestCardData[] = [
+  { icon: Users, title: 'Join a Competition', shortTitle: 'Join', points: 100, desc: 'Enter any live partner challenge' },
+  { icon: Play, title: 'Play Your First Game', shortTitle: 'First Game', points: 150, desc: 'Start your first arena session' },
+  { icon: Target, title: 'Complete Your First Trade', shortTitle: 'First Trade', points: 125, desc: 'Place one trade inside a game' },
+  { icon: Trophy, title: 'Finish a Match', shortTitle: 'Finish', points: 175, desc: 'Stay in until the results screen' },
+  { icon: Swords, title: 'Win Streak', shortTitle: 'Streak', points: 200, desc: 'Chain back-to-back wins in the arena' },
+  { icon: Share2, title: 'Share Your Game Link', shortTitle: 'Share', points: 100, desc: 'Send your partner game URL to players' },
+  { icon: UserPlus, title: 'Get a Referral Join', shortTitle: 'Referral', points: 250, desc: 'Bring in one player through your share link' },
 ];
 
 // Slot machine row for climbing animation
@@ -1135,7 +1145,7 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                     {isCelebrating ? (
                       <CheckIcon className="h-5 w-5 lg:h-7 lg:w-7" />
                     ) : (
-                      <USDCIcon className="h-5 w-5 lg:h-7 lg:w-7" />
+                      <StarIcon className="h-5 w-5 lg:h-7 lg:w-7" />
                     )}
                   </motion.div>
 
@@ -1185,7 +1195,7 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                           isClaiming && 'bg-accent-primary/[0.1] border border-accent-primary/30 text-accent-primary/60'
                         )}
                       >
-                        {isQuestReady ? 'Claim' : '+50'}
+                        {isQuestReady ? 'Claim' : '+50 MILES'}
                       </span>
                     )}
                   </motion.div>
@@ -1194,16 +1204,9 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
             )}
           </AnimatePresence>
 
-          {/* Other quests (static demo data) */}
+          {/* Other quests */}
           <div className="space-y-2 lg:space-y-3">
-            {([
-              { icon: Twitter, title: 'Twitter Discovery', shortTitle: 'Twitter', points: 100, type: 'twitter', desc: 'Find official account' },
-              { icon: MessageCircle, title: 'Community Analysis', shortTitle: 'Community', points: 75, type: 'social', desc: 'Sentiment + mentions' },
-              { icon: Gem, title: 'Holder Analysis', shortTitle: 'Holders', points: 150, type: 'onchain', desc: 'Top 10 holders' },
-              { icon: BookOpen, title: 'Narrative Research', shortTitle: 'Narrative', points: 125, type: 'research', desc: 'Token story' },
-              { icon: Wallet, title: 'God Wallet Tracking', shortTitle: 'Whales', points: 200, type: 'onchain', desc: 'Track known whales' },
-              { icon: Lock, title: 'Liquidity Lock Check', shortTitle: 'Lock Check', points: 80, type: 'onchain', desc: 'Verify lock status' },
-            ] as { icon: LucideIcon; title: string; shortTitle: string; points: number; type: string; desc: string }[]).map((quest, i) => {
+            {REAL_QUESTS.map((quest, i) => {
               const QuestIcon = quest.icon;
               return (
               <motion.div
@@ -1229,7 +1232,7 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                     )}
                   </div>
                   <span className="shrink-0 rounded-sm bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-text-muted lg:px-3 lg:py-1.5 lg:text-xs">
-                    +{quest.points}
+                    +{quest.points} MILES
                   </span>
                 </div>
               </motion.div>
@@ -1295,7 +1298,7 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
           className="absolute inset-0 flex h-full flex-col items-center justify-center gap-6"
           style={{ position: view === 'rewards' ? 'relative' : 'absolute' }}
         >
-          {/* USDC Pool Display */}
+          {/* Deriv MILES pool display */}
           <AnimatePresence mode="wait">
             {rewardsPhase !== 'idle' && (
               <motion.div
@@ -1326,13 +1329,13 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                   transition={{ duration: 0.5, repeat: 2 }}
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-xs uppercase tracking-wider text-text-muted lg:text-sm">USDC Reward Pool</span>
+                    <span className="text-xs uppercase tracking-wider text-text-muted lg:text-sm">Deriv MILES Reward Pool</span>
                     <motion.span 
                       className="text-4xl font-bold text-accent-primary tabular-nums lg:text-5xl"
                       animate={rewardsPhase === 'distribute' ? { scale: [1, 1.1, 1] } : {}}
                       transition={{ duration: 0.4 }}
                     >
-                      <USDCPoolCounter isActive={rewardsPhase === 'show_pool' || rewardsPhase === 'calculate'} />
+                      <DerivMilesPoolCounter isActive={rewardsPhase === 'show_pool' || rewardsPhase === 'calculate'} />
                     </motion.span>
                   </div>
 
@@ -1360,9 +1363,9 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                 className="flex flex-col gap-3 w-full px-4"
               >
                 {[
-                  { rank: 1, name: 'DiamondHands', multiplier: '2.0x', usdc: 400 },
-                  { rank: 2, name: 'You', multiplier: '1.5x', usdc: 300, isYou: true },
-                  { rank: 3, name: 'MoonWatcher', multiplier: '1.0x', usdc: 200 },
+                  { rank: 1, name: 'DiamondHands', multiplier: '2.0x', miles: 400 },
+                  { rank: 2, name: 'You', multiplier: '1.5x', miles: 300, isYou: true },
+                  { rank: 3, name: 'MoonWatcher', multiplier: '1.0x', miles: 200 },
                 ].map((agent, i) => (
                   <motion.div
                     key={agent.rank}
@@ -1409,7 +1412,7 @@ export function QuestsLeaderboardsDemo({ className }: QuestsLeaderboardsDemoProp
                       animate={{ scale: 1 }}
                       transition={{ delay: i * 0.15 + 0.2, type: 'spring', stiffness: 500 }}
                     >
-                      +{agent.usdc} <USDCIcon className="inline-block h-4 w-4 -mt-0.5 ml-0.5" />
+                      +{agent.miles} MILES
                     </motion.span>
                   </motion.div>
                 ))}

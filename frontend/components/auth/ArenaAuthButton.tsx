@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, LogOut, User, Shield, Gamepad2, Crown, Loader2 } from 'lucide-react';
 import { useArenaAuth } from '@/store/arenaAuthStore';
+import { useAuthNudge } from '@/lib/stores/auth-nudge-store';
 
 export default function ArenaAuthButton() {
   const router = useRouter();
@@ -11,6 +12,9 @@ export default function ArenaAuthButton() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [hasMounted, setHasMounted] = useState(false);
+  const nudgeToken = useAuthNudge((s) => s.nudgeToken);
+  const [isNudging, setIsNudging] = useState(false);
+  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
@@ -26,6 +30,22 @@ export default function ArenaAuthButton() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  // Flash the Sign In button for ~1.8s (three 600ms blinks) whenever the
+  // global auth-nudge token increments while the user is signed out.
+  useEffect(() => {
+    if (nudgeToken === 0 || user) return;
+    setIsNudging(false);
+    // Toggle on the next frame so the browser restarts the CSS animation
+    // even if the class is already applied.
+    const raf = requestAnimationFrame(() => setIsNudging(true));
+    if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    nudgeTimerRef.current = setTimeout(() => setIsNudging(false), 1900);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    };
+  }, [nudgeToken, user]);
 
   const handleSignIn = () => {
     router.push('/login');
@@ -53,13 +73,30 @@ export default function ArenaAuthButton() {
 
   if (!user) {
     return (
-      <button
-        onClick={handleSignIn}
-        className="flex items-center gap-2 px-4 py-2 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-all text-sm font-medium"
-      >
-        <Shield className="w-4 h-4" />
-        Sign In
-      </button>
+      <div className="relative">
+        <button
+          onClick={handleSignIn}
+          data-auth-nudge="sign-in"
+          className={`flex items-center gap-2 px-4 py-2 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary hover:bg-accent-primary/20 transition-all text-sm font-medium ${
+            isNudging ? 'animate-auth-nudge' : ''
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Sign In
+        </button>
+
+        {isNudging && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-auth-nudge-toast="sign-in"
+            className="absolute right-0 top-full mt-2 whitespace-nowrap px-3 py-1.5 rounded-md border border-accent-primary/40 bg-bg-secondary/95 backdrop-blur text-[11px] text-text-primary shadow-lg animate-fade-in-down z-50 pointer-events-none"
+          >
+            <span className="text-accent-primary font-semibold">Sign in</span>{' '}
+            <span className="text-text-secondary">to join the game.</span>
+          </div>
+        )}
+      </div>
     );
   }
 

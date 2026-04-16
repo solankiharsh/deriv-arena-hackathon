@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { X, Copy, Check, MessageCircle, Send } from 'lucide-react';
 import { GAME_MODE_LABELS, type GameMode } from '@/lib/arena-types';
+import {
+  buildDestinationPath,
+  buildPartnerTrackingUrl,
+  type PartnerTrackingSource,
+} from '@/lib/partner-tracking';
 
 interface ShareGameModalProps {
   templateName: string;
@@ -13,8 +18,24 @@ interface ShareGameModalProps {
   onClose: () => void;
 }
 
-function buildUrl(origin: string, slug: string, partnerId: string, source: string) {
-  return `${origin}/compete/${slug}?ref=${partnerId}&utm_source=${source}`;
+function buildUrl(origin: string, slug: string, partnerId: string, source: PartnerTrackingSource) {
+  const destinationPath = buildDestinationPath(`/compete/${slug}`, {
+    utm_source: source,
+  });
+
+  // Internal redirect: the URL keeps the partner-tracking query params
+  // (`a`, `o`, `c`, `link_id`, `custom1`) for look-and-feel but points at
+  // our own `${origin}/click` handler so the user stays inside DerivArena
+  // instead of bouncing through `partner-tracking.deriv.com`. The global
+  // `ReferralCapture` on `/click` parses `custom1` and forwards to the
+  // destination path with `ref` + `utm_source` preserved.
+  return buildPartnerTrackingUrl({
+    affiliateId: partnerId,
+    partnerId,
+    destinationPath: `${origin}${destinationPath}`,
+    source,
+    internal: true,
+  });
 }
 
 function shareMessage(name: string, mode: string, duration: number | undefined, url: string) {
@@ -70,6 +91,10 @@ export default function ShareGameModal({
 
         <h3 className="text-lg font-display font-bold text-text-primary mb-1">Share Game</h3>
         <p className="text-xs text-text-muted mb-5">Invite players to &quot;{templateName}&quot;</p>
+        <div className="mb-4 rounded-lg border border-accent-primary/20 bg-accent-primary/5 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-text-muted">Affiliate / Partner ID</p>
+          <p className="mt-1 break-all font-mono text-xs text-accent-primary">{partnerId}</p>
+        </div>
 
         <div className="flex items-center gap-2 bg-bg-primary border border-border rounded-lg p-2 mb-5">
           <input

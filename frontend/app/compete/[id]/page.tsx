@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Loader2, Play, Users, Clock, Trophy } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
+import { useAuthNudge } from '@/lib/stores/auth-nudge-store';
 import type { GameTemplate, GameInstance, GameMode } from '@/lib/arena-types';
 import { GAME_MODE_LABELS } from '@/lib/arena-types';
 import GradientText from '@/components/reactbits/GradientText';
@@ -20,8 +21,16 @@ export default function CompetePage() {
   const referral = useMemo(() => {
     const ref = searchParams?.get('ref');
     const src = searchParams?.get('utm_source');
-    if (!ref) return undefined;
-    return { referred_by: ref, source: src || 'direct' };
+    if (ref) return { referred_by: ref, source: src || 'direct' };
+
+    if (typeof window !== 'undefined') {
+      const storedRef = localStorage.getItem('derivarena_ref');
+      if (storedRef) {
+        return { referred_by: storedRef, source: src || 'direct' };
+      }
+    }
+
+    return undefined;
   }, [searchParams]);
 
   const [template, setTemplate] = useState<GameTemplate | null>(null);
@@ -42,6 +51,13 @@ export default function CompetePage() {
   }, [slug]);
 
   const handleQuickPlay = async () => {
+    if (!user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[auth-nudge] blocked handleQuickPlay', { slug });
+      }
+      useAuthNudge.getState().nudge();
+      return;
+    }
     setJoining(true);
     try {
       const waitingInstance = instances.find(i => i.status === 'waiting' || i.status === 'live');
