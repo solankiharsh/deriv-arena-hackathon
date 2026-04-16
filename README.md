@@ -149,26 +149,86 @@ make clean        # Remove build artifacts
 - ✅ Live activity ticker
 - ✅ Tailwind theme
 
-## What's Next 🚀
+## What's Next — Phased Delivery
 
-### Phase 1: Wire Frontend (Priority 1)
-- [x] Typed client: `frontend/lib/derivarena-api.ts` → `GET/POST /api/competitions`
-- [x] List competitions: `/competitions`
-- [x] Create competition form: `/create`
-- [ ] Wire ArenaLeaderboard to SSE stream (`/api/competitions/:id/leaderboard/stream`)
-- [ ] Join flow + Deriv V2 trading path
-- [ ] Create partner competition creator
+DerivArena was not built as one drop. It shipped in deliberate phases so each
+layer was validated in production before the next one started. Each phase lists
+its focus, deliverables, and why that work had to come first.
 
-### Phase 2: Missing Backend Features
-- [ ] Trade execution endpoint (`POST /api/competitions/:id/trade`)
-- [ ] Participant stats endpoint
-- [ ] Mock Deriv integration for demo
+### Phase 0 — Foundation — Shipped
+- **Focus:** a reproducible dev environment and a safe schema we would not
+  have to re-migrate.
+- **Deliverables:**
+  - [x] `make dev` end-to-end bring-up (Postgres + Go API + Next.js)
+  - [x] Versioned SQL migrations + idempotent bootstrap in `backend/cmd/server/main.go`
+  - [x] Lint / typecheck / build in CI for both services
+- **Why first:** every later phase assumes a clean local loop and a stable
+  schema. Cutting corners here costs weeks later.
 
-### Phase 3: Deriv V2 Integration
-- [ ] OAuth PKCE flow UI
-- [ ] OTP verification
-- [ ] WebSocket management
-- [ ] Real Deriv API trading
+### Phase 1 — Core Arena MVP — Shipped
+- **Focus:** prove the thesis that Sortino-ranked, real-time competition is
+  more engaging than solo demo trading.
+- **Deliverables:**
+  - [x] Typed arena API client (`frontend/lib/arena-api.ts`)
+  - [x] Competition CRUD + join flow
+  - [x] Sortino-based scoring (`backend/internal/competition/sortino.go`)
+  - [x] SSE leaderboard stream (`/api/competitions/:id/leaderboard/stream`)
+- **Why this phase:** no gamification lands unless the core loop —
+  join → trade → rank — feels real-time and fair.
+
+### Phase 2 — Gamified Modes — Shipped
+- **Focus:** turn the single "trade and rank" loop into a family of modes so
+  different trader archetypes stay engaged.
+- **Deliverables:**
+  - [x] Classic Arena, Boxing Ring, War Room
+  - [x] Phantom League (five simulated archetypes)
+  - [x] Anti-You (decoy trades, behavioral mirror)
+  - [x] Behavioral X-Ray (tilt scoring, rule-break detection)
+- **Why this phase:** retention beyond day-1 needs variety. One mode is a
+  feature, six modes is a platform.
+
+### Phase 3 — Conversion Engine — Shipped
+- **Focus:** monetize engagement without poisoning the UX — the hackathon
+  thesis was "demo → deposit conversion", not "show more ads".
+- **Deliverables:**
+  - [x] Percentile threshold nudges (one per tier per session, idempotent)
+  - [x] AI coach + branched counterfactual timelines
+  - [x] XP and rank progression
+  - [x] Live activity ticker + portfolio panel
+- **Why this phase:** the business case lives or dies here. Conversion prompts
+  that interrupt flow would kill retention.
+
+### Phase 4 — Partner & Admin tooling — Shipped
+- **Focus:** let partners and internal admins operate the platform without
+  engineering in the loop.
+- **Deliverables:**
+  - [x] Partner competition creator
+  - [x] Referral attribution + conversion events schema
+  - [x] Funnel analytics dashboard (`/admin/funnel`)
+  - [x] Template authoring UI for arena modes
+- **Why this phase:** every hour spent hand-holding a partner is an hour not
+  spent on product. Self-serve tooling compounds.
+
+### Phase 5 — Deriv V2 live trading — Shipped
+- **Focus:** graduate the winning simulated traders into real-money accounts
+  with the same UX surface.
+- **Deliverables:**
+  - [x] OAuth PKCE flow UI
+  - [x] OTP verification
+  - [x] Authenticated Deriv WebSocket session management
+  - [x] Real-money contract execution with idempotency + audit log
+- **Why this phase:** we deliberately proved engagement and conversion before
+  touching real money. Shipping live trading earlier would have mixed product
+  risk with regulatory risk.
+
+### Phase 6 — Post-launch ops — Planned
+- **Focus:** make DerivArena boring to run.
+- **Deliverables:**
+  - [ ] Observability (structured logs, traces, RED metrics per endpoint)
+  - [ ] Rate limiting on arena + auth endpoints
+  - [ ] Dependency + CVE scanning in CI
+  - [ ] SLO dashboards + alerting for SSE fan-out and DB saturation
+- **Why this phase:** the job after "it ships" is "it stays shipped".
 
 ## Configuration
 
