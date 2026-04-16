@@ -66,7 +66,8 @@ CREATE TABLE competition_stats (
 
 CREATE INDEX idx_competition_stats_sortino ON competition_stats(sortino_ratio DESC NULLS LAST);
 
-CREATE TABLE conversion_events (
+-- Named distinctly from arena funnel `conversion_events` (user_id / partner analytics in frontend migrate)
+CREATE TABLE competition_conversion_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     participant_id UUID NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
     trigger_type TEXT NOT NULL,
@@ -77,5 +78,5 @@ CREATE TABLE conversion_events (
     CONSTRAINT valid_trigger CHECK (trigger_type IN ('top_25', 'win_streak', 'exotic_mastery', 'competition_win'))
 );
 
-CREATE INDEX idx_conversion_events_participant ON conversion_events(participant_id);
-CREATE INDEX idx_conversion_events_trigger ON conversion_events(trigger_type);
+CREATE INDEX idx_competition_conversion_events_participant ON competition_conversion_events(participant_id);
+CREATE INDEX idx_competition_conversion_events_trigger ON competition_conversion_events(trigger_type);

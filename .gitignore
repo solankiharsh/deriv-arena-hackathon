@@ -18,6 +18,9 @@ frontend/tsconfig.tsbuildinfo
 /frontend/out/
 /frontend/.turbo/
 
+# Python
+.venv/
+
 # IDE
 .idea/
 .vscode/

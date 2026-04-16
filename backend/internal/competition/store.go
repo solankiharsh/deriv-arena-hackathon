@@ -381,7 +381,7 @@ func (s *Store) GetLeaderboard(ctx context.Context, competitionID uuid.UUID) ([]
 // RecordConversionEvent records a conversion nudge event.
 func (s *Store) RecordConversionEvent(ctx context.Context, event ConversionEvent) error {
 	query := `
-		INSERT INTO conversion_events (id, participant_id, trigger_type, nudge_shown, clicked, converted, created_at)
+		INSERT INTO competition_conversion_events (id, participant_id, trigger_type, nudge_shown, clicked, converted, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 

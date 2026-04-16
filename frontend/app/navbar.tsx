@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target } from 'lucide-react';
+import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target, Star, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import ArenaAuthButton from '@/components/auth/ArenaAuthButton';
@@ -41,6 +41,8 @@ export default function Navbar() {
     { href: '/competitions',   label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard',    label: 'Leaderboard',   Icon: Trophy },
     { href: '/create',         label: 'Create',        Icon: PlusCircle },
+    { href: '/miles',          label: 'Miles',          Icon: Star },
+    { href: '/marketplace',    label: 'Marketplace',   Icon: ShoppingBag },
     ...((user?.role === 'partner' || user?.role === 'admin') ? [{ href: '/partner', label: 'Partner', Icon: Target }] : []),
     ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Admin', Icon: Shield }] : []),
   ];

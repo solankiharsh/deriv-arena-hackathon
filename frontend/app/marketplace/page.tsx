@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useArenaAuth } from '@/store/arenaAuthStore';
 
 const CATEGORIES = [
   { id: 'all', label: 'All Items', icon: '🎁' },
@@ -25,7 +26,8 @@ const CATEGORIES = [
 ];
 
 export default function MarketplacePage() {
-  const [userId] = useState('demo_user');
+  const { user } = useArenaAuth();
+  const userId = user?.deriv_account_id ?? 'demo_user';
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);

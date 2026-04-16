@@ -13,6 +13,7 @@ import {
   Calendar,
   ArrowRight,
 } from 'lucide-react';
+import { useArenaAuth } from '@/store/arenaAuthStore';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   'trending-up': <TrendingUp className="w-5 h-5" />,
@@ -23,7 +24,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 export default function MilesDashboardPage() {
-  const [userId] = useState('demo_user');
+  const { user } = useArenaAuth();
+  const userId = user?.deriv_account_id ?? 'demo_user';
   const {
     stats,
     transactions,
@@ -111,19 +113,32 @@ export default function MilesDashboardPage() {
 
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Earning Opportunities</h2>
-              <div className="space-y-3">
-                {earningOpportunities.map((opp, i) => (
-                  <div key={i} className="flex items-start gap-3 p-4 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
-                    <div className="text-primary">
-                      {ICON_MAP[opp.icon] || <Star className="w-5 h-5" />}
+              {loading && earningOpportunities.length === 0 ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 animate-pulse bg-muted rounded-lg" />
+                  ))}
+                </div>
+              ) : earningOpportunities.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Star className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Complete trades and competitions to earn miles</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {earningOpportunities.map((opp, i) => (
+                    <div key={i} className="flex items-start gap-3 p-4 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
+                      <div className="text-primary">
+                        {ICON_MAP[opp.icon] || <Star className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium">{opp.title}</h3>
+                        <p className="text-sm text-muted-foreground">{opp.description}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium">{opp.title}</h3>
-                      <p className="text-sm text-muted-foreground">{opp.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
