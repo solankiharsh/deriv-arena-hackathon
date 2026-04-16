@@ -21,6 +21,7 @@ import (
 
 	"derivarena/internal/actionbus"
 	"derivarena/internal/competition"
+	"derivarena/internal/derivmiles"
 	"derivarena/internal/marketdata"
 	"derivarena/internal/marketdata/deriv"
 )
@@ -147,8 +148,14 @@ func main() {
 		_ = json.NewEncoder(w).Encode(payload)
 	})
 
+	// Deriv Miles service (create first so we can inject into competition service)
+	milesSvc := derivmiles.NewService(logger.Named("derivmiles"), pool)
+	milesSvc.RegisterRoutes(r)
+	log.Infow("Deriv Miles Rewards API enabled")
+
 	// Competition service
 	compSvc := competition.NewService(logger.Named("competition"), pool, shareBaseURL)
+	compSvc.SetMilesEngine(milesSvc.GetEngine())
 	compSvc.RegisterRoutes(r)
 	log.Infow("DerivArena Competition API enabled", "share_base_url", shareBaseURL)
 

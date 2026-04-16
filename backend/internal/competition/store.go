@@ -10,14 +10,27 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// MilesEngine interface for earning miles (to avoid circular dependency)
+type MilesEngine interface {
+	ProcessProfitableTrade(ctx context.Context, userID, tradeID string, pnl decimal.Decimal) error
+	ProcessCompetitionWin(ctx context.Context, userID, competitionID string, position int) error
+	ProcessWinStreak(ctx context.Context, userID string, streakLength int) error
+}
+
 // Store handles database operations for competitions.
 type Store struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	milesEngine MilesEngine
 }
 
 // NewStore creates a new competition store.
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
+}
+
+// SetMilesEngine sets the miles earning engine
+func (s *Store) SetMilesEngine(engine MilesEngine) {
+	s.milesEngine = engine
 }
 
 // CreateCompetition creates a new competition.
@@ -155,6 +168,21 @@ func (s *Store) EndCompetition(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("competition not found or not active")
 	}
 
+	if s.milesEngine != nil {
+		leaderboard, err := s.GetLeaderboard(ctx, id)
+		if err == nil && len(leaderboard) > 0 {
+			for i, entry := range leaderboard {
+				if entry.Rank <= 3 {
+					_ = s.milesEngine.ProcessCompetitionWin(ctx, entry.TraderID, id.String(), entry.Rank)
+				}
+				
+				if i >= 2 {
+					break
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -267,6 +295,13 @@ func (s *Store) RecordTrade(ctx context.Context, trade Trade) error {
 	if trade.PnL != nil {
 		if err := s.updateStats(ctx, trade.ParticipantID); err != nil {
 			return fmt.Errorf("update stats: %w", err)
+		}
+		
+		if trade.PnL.IsPositive() && s.milesEngine != nil {
+			participant, err := s.GetParticipant(ctx, trade.ParticipantID)
+			if err == nil && participant.TraderID != "" {
+				_ = s.milesEngine.ProcessProfitableTrade(ctx, participant.TraderID, trade.ID.String(), *trade.PnL)
+			}
 		}
 	}
 

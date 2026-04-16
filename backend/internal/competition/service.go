@@ -32,6 +32,11 @@ func NewService(log *zap.Logger, pool *pgxpool.Pool, shareBaseURL string) *Servi
 	}
 }
 
+// SetMilesEngine sets the miles earning engine on the store
+func (s *Service) SetMilesEngine(engine MilesEngine) {
+	s.store.SetMilesEngine(engine)
+}
+
 // RegisterRoutes registers HTTP handlers on the given router.
 func (s *Service) RegisterRoutes(r chi.Router) {
 	r.Route("/api/competitions", func(r chi.Router) {
