@@ -27,7 +27,7 @@ Use this as the master execution list. Check items as you ship. Details and cont
 - [x] Start / end competition lifecycle
 - [x] Leaderboard snapshot endpoint
 - [x] Leaderboard SSE stream endpoint
-- [x] Record trades: `POST /api/competitions/{id}/trade` (demo / platform hook; Deriv execution path still Phase 2)
+- [x] Record trades: `POST /api/competitions/{id}/trade` (closed PnL + `trader_id`; Sortino refreshed; UI on competition detail)
 - [x] Conversion event logging: `POST /api/competitions/{id}/conversion-events`
 - [x] Participant stats: `GET /api/competitions/{id}/participants/{participantId}/stats`
 
@@ -75,7 +75,7 @@ Use this as the master execution list. Check items as you ship. Details and cont
 
 - [x] `participants.participant_kind` (`human` | `agent`) + optional `metadata` JSONB (migration `011_participant_kind`, join API)
 - [ ] Join request validates max agents per comp (optional product rule)
-- [ ] Authenticated `POST /api/competitions/{id}/trade` (or equivalent) used by **both** browser and agent worker — single code path to `RecordTrade` / stats
+- [x] `POST /api/competitions/{id}/trade` → `RecordTrade` + stats + Sortino (demo: `trader_id` must match join; **auth hardening / OAuth next**)
 
 **Agent deploy (demo)**
 

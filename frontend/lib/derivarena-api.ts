@@ -103,6 +103,56 @@ export type JoinCompetitionInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type RecordCompetitionTradeInput = {
+  trader_id: string;
+  contract_type: string;
+  symbol: string;
+  stake: string;
+  /** Closed-trade PnL (required for stats / Sortino update) */
+  pnl: string;
+  payout?: string;
+  contract_id?: string;
+};
+
+export type CompetitionTrade = {
+  id: string;
+  competition_id: string;
+  participant_id: string;
+  contract_type: string;
+  symbol: string;
+  stake: string;
+  payout?: string | null;
+  pnl?: string | null;
+  executed_at: string;
+  closed_at?: string | null;
+  contract_id?: string;
+};
+
+export async function recordCompetitionTrade(
+  competitionId: string,
+  body: RecordCompetitionTradeInput,
+): Promise<CompetitionTrade> {
+  const payload: Record<string, unknown> = {
+    trader_id: body.trader_id,
+    contract_type: body.contract_type,
+    symbol: body.symbol,
+    stake: body.stake,
+    pnl: body.pnl,
+  };
+  if (body.payout != null && body.payout !== '') payload.payout = body.payout;
+  if (body.contract_id != null && body.contract_id !== '') payload.contract_id = body.contract_id;
+
+  const res = await fetch(
+    `${apiBase()}/api/competitions/${encodeURIComponent(competitionId)}/trade`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  return parseJson<CompetitionTrade>(res);
+}
+
 export async function joinCompetition(
   competitionId: string,
   body: JoinCompetitionInput,

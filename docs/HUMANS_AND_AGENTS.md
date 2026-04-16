@@ -51,12 +51,14 @@ Both humans and agents must hit the **same** server flow:
 
 Avoid: agent trades only in browser memory while humans use DB — that breaks comparison.
 
+**Shipped:** `POST /api/competitions/{id}/trade` with `trader_id` (same identity as join) + **`CompetitionDemoTradeForm`** on the competition detail page for humans; workers use the same JSON body.
+
 ### Step C — “Deploy agent” = register + runner
 
 **Minimum demo (fast):**
 
 1. `POST .../join` → get `participant_id` for the bot.
-2. Small **Go worker** or **Node script** (same repo as `scripts/`) with env: `API_URL`, `COMPETITION_ID`, `PARTICIPANT_ID`, `DERIV_TOKEN` (server-side secret), loop: fetch snapshot → run policy (port TS logic to Go **or** call a tiny sidecar) → execute on Deriv → `POST` trade result to API.
+2. Small **Go worker** or **Node script** with env: `API_URL`, `COMPETITION_ID`, bot `trader_id`, `DERIV_TOKEN` (server-side secret), loop: snapshot → policy → Deriv execute → **`POST /api/competitions/{id}/trade`** with that `trader_id` and closed `pnl`.
 
 **Better UX:**
 

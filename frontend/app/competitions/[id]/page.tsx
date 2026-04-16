@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouteParamId } from '@/hooks/useRouteParamId';
 import {
@@ -21,6 +21,7 @@ import {
   type Competition,
   type Participant,
 } from '@/lib/derivarena-api';
+import { CompetitionDemoTradeForm } from '@/components/derivarena/CompetitionDemoTradeForm';
 import { CompetitionLeaderboard } from '@/components/derivarena/CompetitionLeaderboard';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,6 +109,13 @@ export default function CompetitionDetailPage() {
         }
       })
       .finally(() => setLoading(false));
+  }, [id]);
+
+  const refreshParticipants = useCallback(() => {
+    if (!id) return;
+    listParticipants(id)
+      .then((ps) => setParticipants(Array.isArray(ps) ? ps : []))
+      .catch(() => {});
   }, [id]);
 
   // ── Share URL ────────────────────────────────────────────────────────────
@@ -301,6 +309,14 @@ export default function CompetitionDetailPage() {
             Join this competition →
           </Link>
         )}
+
+        <CompetitionDemoTradeForm
+          competitionId={comp.id}
+          status={comp.status}
+          contractTypes={comp.contract_types || []}
+          participants={participantList}
+          onRecorded={refreshParticipants}
+        />
 
         {/* Live leaderboard */}
         <div className="mb-10">

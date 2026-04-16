@@ -308,10 +308,13 @@ func (s *Store) RecordTrade(ctx context.Context, trade Trade) error {
 		return fmt.Errorf("record trade: %w", err)
 	}
 
-	// Update stats
+	// Update stats + Sortino when trade has closed PnL
 	if trade.PnL != nil {
 		if err := s.updateStats(ctx, trade.ParticipantID); err != nil {
 			return fmt.Errorf("update stats: %w", err)
+		}
+		if err := s.CalculateSortino(ctx, trade.ParticipantID, 0); err != nil {
+			return fmt.Errorf("update sortino: %w", err)
 		}
 	}
 

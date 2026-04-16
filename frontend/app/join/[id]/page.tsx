@@ -10,22 +10,7 @@ import {
   type Competition,
   type Participant,
 } from '@/lib/derivarena-api';
-
-// ── Trader identity ─────────────────────────────────────────────────────────
-// On first visit a stable trader_id is generated and persisted in localStorage
-// so the user can re-join across refreshes without auth.
-
-const TRADER_ID_KEY = 'derivarena_trader_id';
-
-function getOrCreateTraderId(): string {
-  if (typeof window === 'undefined') return '';
-  let id = localStorage.getItem(TRADER_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(TRADER_ID_KEY, id);
-  }
-  return id;
-}
+import { getOrCreateTraderId } from '@/lib/derivarena-trader-id';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

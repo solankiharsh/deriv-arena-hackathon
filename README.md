@@ -93,6 +93,17 @@ curl -X POST http://localhost:8090/api/competitions/{id}/join \
     "trader_name": "John Doe"
   }'
 
+# Record a closed demo trade (same trader_id as join; competition must be active)
+curl -X POST http://localhost:8090/api/competitions/{id}/trade \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trader_id": "user123",
+    "contract_type": "CALL",
+    "symbol": "1HZ100V",
+    "stake": "50",
+    "pnl": "12.50"
+  }'
+
 # Start competition
 curl -X POST http://localhost:8090/api/competitions/{id}/start
 
@@ -165,7 +176,7 @@ make clean        # Remove build artifacts
 - [ ] Create partner competition creator
 
 ### Phase 2: Missing Backend Features
-- [ ] Trade execution endpoint (`POST /api/competitions/:id/trade`) — shared by humans and agent workers
+- [x] Trade record endpoint (`POST /api/competitions/:id/trade`) — demo hook + UI; wire to Deriv fills next
 - [ ] Participant stats endpoint (+ win/loss breakdown for compare UI)
 - [ ] Mock Deriv integration for demo
 - [ ] Dual participants: `participant_kind`, bot join + worker ingest token — [docs/HUMANS_AND_AGENTS.md](docs/HUMANS_AND_AGENTS.md)

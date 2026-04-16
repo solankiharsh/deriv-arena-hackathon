@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -41,6 +42,7 @@ func (s *Service) RegisterRoutes(r chi.Router) {
 		r.Post("/{id}/start", s.handleStart)
 		r.Post("/{id}/end", s.handleEnd)
 		r.Post("/{id}/join", s.handleJoin)
+		r.Post("/{id}/trade", s.handleRecordTrade)
 		r.Get("/{id}/participants", s.handleListParticipants)
 		r.Get("/{id}/leaderboard", s.handleLeaderboard)
 		r.Get("/{id}/leaderboard/stream", s.handleLeaderboardStream)
@@ -224,6 +226,132 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(participant)
+}
+
+// handleRecordTrade records a closed trade for a participant identified by trader_id (same as join flow).
+// Demo / integration hook until Deriv fills are wired; requires competition status active.
+func (s *Service) handleRecordTrade(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	compID, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		TraderID     string  `json:"trader_id"`
+		ContractType string  `json:"contract_type"`
+		Symbol       string  `json:"symbol"`
+		Stake        string  `json:"stake"`
+		Payout       *string `json:"payout"`
+		PnL          *string `json:"pnl"`
+		ContractID   string  `json:"contract_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, fmt.Sprintf("decode request: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	body.TraderID = strings.TrimSpace(body.TraderID)
+	body.ContractType = strings.TrimSpace(body.ContractType)
+	body.Symbol = strings.TrimSpace(body.Symbol)
+	body.ContractID = strings.TrimSpace(body.ContractID)
+
+	if body.TraderID == "" {
+		http.Error(w, "trader_id required", http.StatusBadRequest)
+		return
+	}
+	if body.ContractType == "" || body.Symbol == "" {
+		http.Error(w, "contract_type and symbol required", http.StatusBadRequest)
+		return
+	}
+	if body.PnL == nil || strings.TrimSpace(*body.PnL) == "" {
+		http.Error(w, "pnl required (closed trade) for leaderboard stats", http.StatusBadRequest)
+		return
+	}
+
+	comp, err := s.store.GetCompetition(r.Context(), compID)
+	if err != nil {
+		s.log.Error("record trade: get competition", zap.Error(err))
+		http.Error(w, "competition not found", http.StatusNotFound)
+		return
+	}
+	if comp.Status != StatusActive {
+		http.Error(w, "trades only accepted while competition is active", http.StatusBadRequest)
+		return
+	}
+
+	allowed := false
+	for _, ct := range comp.ContractTypes {
+		if strings.EqualFold(strings.TrimSpace(ct), body.ContractType) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		http.Error(w, "contract_type not allowed for this competition", http.StatusBadRequest)
+		return
+	}
+
+	stake, err := decimal.NewFromString(strings.TrimSpace(body.Stake))
+	if err != nil || !stake.IsPositive() {
+		http.Error(w, "stake must be a positive decimal", http.StatusBadRequest)
+		return
+	}
+
+	pnl, err := decimal.NewFromString(strings.TrimSpace(*body.PnL))
+	if err != nil {
+		http.Error(w, "invalid pnl", http.StatusBadRequest)
+		return
+	}
+
+	var payout *decimal.Decimal
+	if body.Payout != nil && strings.TrimSpace(*body.Payout) != "" {
+		p, err := decimal.NewFromString(strings.TrimSpace(*body.Payout))
+		if err != nil {
+			http.Error(w, "invalid payout", http.StatusBadRequest)
+			return
+		}
+		payout = &p
+	}
+
+	participant, err := s.store.getParticipantByCompetitionAndTrader(r.Context(), compID, body.TraderID)
+	if err != nil {
+		http.Error(w, "participant not found — join this competition first", http.StatusBadRequest)
+		return
+	}
+
+	tr := Trade{
+		ID:            uuid.New(),
+		CompetitionID: compID,
+		ParticipantID: participant.ID,
+		ContractType:  body.ContractType,
+		Symbol:        body.Symbol,
+		Stake:         stake,
+		Payout:        payout,
+		PnL:           &pnl,
+		ExecutedAt:    time.Now(),
+		ClosedAt:      ptrTime(time.Now()),
+		ContractID:    body.ContractID,
+	}
+
+	if err := s.store.RecordTrade(r.Context(), tr); err != nil {
+		s.log.Error("record trade failed", zap.Error(err))
+		http.Error(w, "could not record trade", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tr)
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
 }
 
 func (s *Service) handleListParticipants(w http.ResponseWriter, r *http.Request) {
