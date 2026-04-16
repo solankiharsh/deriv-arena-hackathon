@@ -86,6 +86,12 @@ func main() {
 	}
 	log.Infow("Connected to database", "url", maskPassword(dbURL))
 
+	// Auto-migrate on startup — idempotent, safe to run every deploy.
+	if err := runMigrations(ctx, pool, log); err != nil {
+		log.Fatalw("Migration failed", "error", err)
+	}
+	log.Infow("Database migrations applied")
+
 	// Create router
 	r := chi.NewRouter()
 	
@@ -245,9 +251,234 @@ func main() {
 }
 
 func maskPassword(dbURL string) string {
-	// Simple masking for logs
 	if len(dbURL) > 30 {
 		return dbURL[:30] + "..."
 	}
 	return "***"
+}
+
+const migrationSQL = `
+-- Backend competition schema (idempotent)
+CREATE TABLE IF NOT EXISTS competitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    partner_id TEXT,
+    partner_name TEXT,
+    app_id TEXT,
+    duration_hours INT NOT NULL,
+    contract_types TEXT[] NOT NULL DEFAULT '{}',
+    starting_balance DECIMAL(20,2) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    share_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT valid_status CHECK (status IN ('pending', 'active', 'ended', 'cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_competitions_status ON competitions(status);
+CREATE INDEX IF NOT EXISTS idx_competitions_partner_id ON competitions(partner_id);
+CREATE INDEX IF NOT EXISTS idx_competitions_start_time ON competitions(start_time);
+
+CREATE TABLE IF NOT EXISTS participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+    trader_id TEXT NOT NULL,
+    trader_name TEXT,
+    deriv_account_id TEXT,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(competition_id, trader_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_participants_competition_id ON participants(competition_id);
+CREATE INDEX IF NOT EXISTS idx_participants_trader_id ON participants(trader_id);
+
+CREATE TABLE IF NOT EXISTS competition_trades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+    participant_id UUID NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+    contract_type TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    stake DECIMAL(20,2) NOT NULL,
+    payout DECIMAL(20,2),
+    pnl DECIMAL(20,2),
+    executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closed_at TIMESTAMPTZ,
+    contract_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_competition_trades_competition_id ON competition_trades(competition_id);
+CREATE INDEX IF NOT EXISTS idx_competition_trades_participant_id ON competition_trades(participant_id);
+CREATE INDEX IF NOT EXISTS idx_competition_trades_executed_at ON competition_trades(executed_at);
+
+CREATE TABLE IF NOT EXISTS competition_stats (
+    participant_id UUID PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
+    total_trades INT NOT NULL DEFAULT 0,
+    profitable_trades INT NOT NULL DEFAULT 0,
+    total_pnl DECIMAL(20,2) NOT NULL DEFAULT 0,
+    sortino_ratio DECIMAL(10,4),
+    max_drawdown DECIMAL(10,4),
+    current_balance DECIMAL(20,2) NOT NULL,
+    last_updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_competition_stats_sortino ON competition_stats(sortino_ratio DESC NULLS LAST);
+
+-- Frontend arena schema (idempotent)
+CREATE TABLE IF NOT EXISTS arena_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deriv_account_id TEXT UNIQUE NOT NULL,
+    deriv_login_id TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL,
+    avatar_url TEXT,
+    role TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('player','partner','admin')),
+    arena_rating NUMERIC(8,2) NOT NULL DEFAULT 0,
+    total_games INT NOT NULL DEFAULT 0,
+    total_wins INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS game_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    game_mode TEXT NOT NULL CHECK (game_mode IN ('classic','phantom_league','boxing_ring','anti_you','war_room','behavioral_xray')),
+    created_by UUID NOT NULL REFERENCES arena_users(id),
+    config JSONB NOT NULL DEFAULT '{}',
+    is_featured BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    play_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_mode ON game_templates(game_mode);
+CREATE INDEX IF NOT EXISTS idx_templates_creator ON game_templates(created_by);
+CREATE INDEX IF NOT EXISTS idx_templates_slug ON game_templates(slug);
+
+CREATE TABLE IF NOT EXISTS game_instances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id UUID NOT NULL REFERENCES game_templates(id),
+    template_slug TEXT NOT NULL,
+    started_by UUID NOT NULL REFERENCES arena_users(id),
+    status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting','live','finished','cancelled')),
+    started_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    player_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_instances_template ON game_instances(template_id);
+CREATE INDEX IF NOT EXISTS idx_instances_status ON game_instances(status);
+
+CREATE TABLE IF NOT EXISTS instance_players (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID NOT NULL REFERENCES game_instances(id),
+    user_id UUID NOT NULL REFERENCES arena_users(id),
+    referred_by UUID REFERENCES arena_users(id),
+    score NUMERIC(12,4) NOT NULL DEFAULT 0,
+    normalized_score NUMERIC(8,4) NOT NULL DEFAULT 0,
+    rank INT NOT NULL DEFAULT 0,
+    trades_count INT NOT NULL DEFAULT 0,
+    pnl NUMERIC(12,4) NOT NULL DEFAULT 0,
+    behavioral_score NUMERIC(8,4) NOT NULL DEFAULT 0,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    UNIQUE(instance_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_iplayers_instance ON instance_players(instance_id);
+CREATE INDEX IF NOT EXISTS idx_iplayers_user ON instance_players(user_id);
+
+CREATE TABLE IF NOT EXISTS game_scores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID NOT NULL REFERENCES game_instances(id),
+    user_id UUID NOT NULL REFERENCES arena_users(id),
+    raw_score NUMERIC(12,4) NOT NULL DEFAULT 0,
+    normalized_score NUMERIC(8,4) NOT NULL DEFAULT 0,
+    pnl NUMERIC(12,4) NOT NULL DEFAULT 0,
+    trade_count INT NOT NULL DEFAULT 0,
+    sortino_ratio NUMERIC(10,6) NOT NULL DEFAULT 0,
+    behavioral_score NUMERIC(8,4) NOT NULL DEFAULT 0,
+    percentile NUMERIC(6,2) NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scores_instance ON game_scores(instance_id);
+CREATE INDEX IF NOT EXISTS idx_scores_user ON game_scores(user_id);
+
+CREATE TABLE IF NOT EXISTS partner_referral_clicks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    partner_id UUID NOT NULL REFERENCES arena_users(id),
+    template_id UUID NOT NULL REFERENCES game_templates(id),
+    instance_id UUID REFERENCES game_instances(id),
+    user_id UUID REFERENCES arena_users(id),
+    source TEXT NOT NULL DEFAULT 'direct' CHECK (source IN ('whatsapp','telegram','twitter','copy','direct')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_clicks_partner ON partner_referral_clicks(partner_id);
+CREATE INDEX IF NOT EXISTS idx_referral_clicks_template ON partner_referral_clicks(template_id);
+
+CREATE TABLE IF NOT EXISTS instance_trades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID NOT NULL REFERENCES game_instances(id),
+    user_id UUID NOT NULL REFERENCES arena_users(id),
+    contract_type TEXT NOT NULL,
+    market TEXT NOT NULL,
+    stake NUMERIC(12,4) NOT NULL,
+    payout NUMERIC(12,4) NOT NULL DEFAULT 0,
+    pnl NUMERIC(12,4) NOT NULL DEFAULT 0,
+    entry_price NUMERIC(16,8),
+    exit_price NUMERIC(16,8),
+    duration INT NOT NULL DEFAULT 0,
+    result TEXT CHECK (result IN ('win','loss','pending','cancelled')),
+    deriv_contract_id TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_itrades_instance ON instance_trades(instance_id);
+CREATE INDEX IF NOT EXISTS idx_itrades_user ON instance_trades(user_id);
+
+CREATE TABLE IF NOT EXISTS conversion_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES arena_users(id),
+    partner_id UUID REFERENCES arena_users(id),
+    template_id UUID REFERENCES game_templates(id),
+    instance_id UUID REFERENCES game_instances(id),
+    event_type TEXT NOT NULL CHECK (event_type IN ('signup_click','redirect','registration','first_trade')),
+    percentile_at_trigger NUMERIC(6,2) NOT NULL DEFAULT 0,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversion_user ON conversion_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversion_partner ON conversion_events(partner_id);
+
+-- Seed demo users (idempotent)
+INSERT INTO arena_users (deriv_account_id, deriv_login_id, display_name, role)
+VALUES
+    ('DEMO_P1',      'DEMO_P1',      'Demo Player',  'player'),
+    ('DEMO_PARTNER', 'DEMO_PARTNER', 'Demo Partner', 'partner'),
+    ('DEMO_ADMIN',   'DEMO_ADMIN',   'Demo Admin',   'admin')
+ON CONFLICT (deriv_account_id) DO NOTHING;
+`
+
+func runMigrations(ctx context.Context, pool *pgxpool.Pool, log *zap.SugaredLogger) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire connection: %w", err)
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, migrationSQL); err != nil {
+		return fmt.Errorf("execute migration: %w", err)
+	}
+	return nil
 }
