@@ -7,6 +7,7 @@ Converts demo traders into depositors through competitive Sortino-ranked leaderb
 ## Roadmap
 
 - Plan and technical narrative: [docs/ROADMAP.md](docs/ROADMAP.md)
+- **Humans + agents in the same competition** (integration plan, W/L compare, deploy path): [docs/HUMANS_AND_AGENTS.md](docs/HUMANS_AND_AGENTS.md)
 - Master delivery checklist (all phases): [docs/PHASE_CHECKLIST.md](docs/PHASE_CHECKLIST.md)
 - **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
 - Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)
@@ -50,12 +51,14 @@ derivarena/
 │   ├── internal/exchange/              # DerivClient (auth WS), sim stub
 │   └── migrations/                     # DB schema
 ├── frontend/
-│   ├── app/                            # Next.js pages
+│   ├── app/                            # Next.js pages (+ `/dashboard/paper-agent` lab)
 │   ├── components/arena/               # Arena UI components
 │   │   ├── ArenaLeaderboard.tsx
 │   │   ├── LiveActivityTicker.tsx
 │   │   ├── PortfolioPanel.tsx
 │   │   └── XPProgressBar.tsx
+│   ├── lib/agents/                     # Swarm + policy (ranked comps: POST trades via Go API)
+│   ├── lib/paper/                      # Paper ledger (local until wired to competition)
 │   └── lib/                            # Shared utilities and API helpers
 └── Makefile
 ```
@@ -148,6 +151,7 @@ make clean        # Remove build artifacts
 - ✅ XP progress bar
 - ✅ Live activity ticker
 - ✅ Tailwind theme
+- ✅ Paper swarm lab: policy wizard, live public ticks, `lib/agents` + `lib/paper` (see [docs/HUMANS_AND_AGENTS.md](docs/HUMANS_AND_AGENTS.md) to wire bots into competitions)
 
 ## What's Next 🚀
 
@@ -160,9 +164,10 @@ make clean        # Remove build artifacts
 - [ ] Create partner competition creator
 
 ### Phase 2: Missing Backend Features
-- [ ] Trade execution endpoint (`POST /api/competitions/:id/trade`)
-- [ ] Participant stats endpoint
+- [ ] Trade execution endpoint (`POST /api/competitions/:id/trade`) — shared by humans and agent workers
+- [ ] Participant stats endpoint (+ win/loss breakdown for compare UI)
 - [ ] Mock Deriv integration for demo
+- [ ] Dual participants: `participant_kind`, bot join + worker ingest token — [docs/HUMANS_AND_AGENTS.md](docs/HUMANS_AND_AGENTS.md)
 
 ### Phase 3: Deriv V2 Integration
 - [ ] OAuth PKCE flow UI
