@@ -51,6 +51,8 @@ function ScoreBar({
   const isConnected = useAuthStore((s) => s.isConnected);
   const balance = useAuthStore((s) => s.balance);
   const sessionPnl = useTradeStore((s) => s.sessionPnl);
+  const isRealTradeMode = useTradeStore((s) => s.isRealTradeMode);
+  const displayBalance = isRealTradeMode ? balance : balance + sessionPnl;
 
   return (
     <div className="bg-card border border-border rounded-card p-3 flex items-center gap-4 flex-wrap">
@@ -61,7 +63,7 @@ function ScoreBar({
           <WifiOff className="w-3 h-3 text-red-400 animate-pulse" />
         )}
         <span className="text-[10px] font-mono text-text-muted">
-          {isConnected ? 'LIVE' : 'CONNECTING'}
+          {isConnected ? (isRealTradeMode ? 'LIVE' : 'SIM') : 'CONNECTING'}
         </span>
       </div>
 
@@ -70,7 +72,7 @@ function ScoreBar({
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] font-mono text-text-muted uppercase">Balance</span>
         <span className="font-mono font-bold text-sm text-text-primary tabular-nums">
-          ${(balance + sessionPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ${displayBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
 

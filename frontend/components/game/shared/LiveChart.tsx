@@ -45,6 +45,7 @@ export function LiveChart({ height = 240, compact = false }: LiveChartProps) {
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [wsConnected, setWsConnected] = useState(derivWS.connected);
   const [error, setError] = useState<string | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
   const displayName = useTradeStore(
     (s) => s.availableSymbols.find((sym) => sym.symbol === s.selectedAsset)?.display_name
@@ -56,7 +57,22 @@ export function LiveChart({ height = 240, compact = false }: LiveChartProps) {
   }, [lastPrice, activePosition]);
 
   useEffect(() => {
-    const unsub = derivWS.onConnectionChange(setWsConnected);
+    const unsub = derivWS.onConnectionChange((connected) => {
+      setWsConnected(connected);
+      if (!connected && reconnectAttemptRef.current < 5) {
+        reconnectAttemptRef.current++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 10000);
+        setTimeout(() => {
+          if (!derivWS.connected) {
+            const appId = useAuthStore.getState().appId;
+            derivWS.connect(appId);
+          }
+        }, delay);
+      }
+      if (connected) {
+        reconnectAttemptRef.current = 0;
+      }
+    });
     return unsub;
   }, []);
 

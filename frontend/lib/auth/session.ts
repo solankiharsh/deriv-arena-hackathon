@@ -14,6 +14,8 @@ export interface SessionPayload extends JWTPayload {
   did: string; // deriv account id
   role: UserRole;
   name: string;
+  dt?: string; // deriv OAuth token for WS authorization
+  da?: string; // deriv demo account id (VRTC...)
 }
 
 export async function createSession(payload: Omit<SessionPayload, 'iat' | 'exp'>): Promise<string> {

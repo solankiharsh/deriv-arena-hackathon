@@ -26,6 +26,7 @@ interface TradeState {
   sessionWins: number;
   winStreak: number;
   lossStreak: number;
+  isRealTradeMode: boolean;
   availableSymbols: ActiveSymbol[];
   selectedAsset: string;
   selectedDirection: "CALL" | "PUT";
@@ -44,6 +45,7 @@ interface TradeState {
   setSelectedStake: (stake: number) => void;
   setSelectedDuration: (duration: number) => void;
   setSelectedDurationUnit: (unit: string) => void;
+  setRealTradeMode: (mode: boolean) => void;
   recordTradeResult: (win: boolean, pnl: number) => void;
   resetSession: () => void;
 }
@@ -56,6 +58,7 @@ export const useTradeStore = create<TradeState>()((set) => ({
   sessionWins: 0,
   winStreak: 0,
   lossStreak: 0,
+  isRealTradeMode: false,
   availableSymbols: [],
   selectedAsset: "R_100",
   selectedDirection: "CALL",
@@ -95,6 +98,8 @@ export const useTradeStore = create<TradeState>()((set) => ({
   setSelectedDuration: (selectedDuration) => set({ selectedDuration }),
 
   setSelectedDurationUnit: (selectedDurationUnit) => set({ selectedDurationUnit }),
+
+  setRealTradeMode: (isRealTradeMode) => set({ isRealTradeMode }),
 
   recordTradeResult: (win, pnl) =>
     set((state) => ({

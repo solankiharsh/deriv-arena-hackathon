@@ -2,7 +2,9 @@
 
 import { nanoid } from "nanoid";
 import { subscribeTicks } from "@/lib/deriv/tick-bus";
+import { derivTradingWS } from "@/lib/deriv/trading-ws";
 import { useTradeStore } from "@/lib/stores/trade-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useTiltStore } from "@/lib/stores/tilt-store";
 import { useArenaStore } from "@/lib/stores/arena-store";
@@ -168,6 +170,197 @@ function calculateLivePnl(
   return stake * ratio;
 }
 
+let activeRealContractId: number | null = null;
+
+async function placeRealTrade(params: {
+  asset: string;
+  assetDisplayName: string;
+  direction: TradeDirection;
+  stake: number;
+  duration: number;
+  durationUnit: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (activeRealContractId) {
+    return { success: false, error: "A real trade is already active." };
+  }
+
+  const tradeStore = useTradeStore.getState();
+  const sessionStore = useSessionStore.getState();
+  const tradeId = nanoid();
+  const now = Date.now();
+  const contractType = params.direction === "CALL" ? "CALL" : "PUT";
+
+  try {
+    if (!derivTradingWS.isConnected) {
+      const reconnected = await derivTradingWS.connect();
+      if (!reconnected) {
+        return { success: false, error: "Could not connect to Deriv trading server. Falling back to simulation." };
+      }
+    }
+
+    const proposal = await derivTradingWS.sendProposal({
+      amount: params.stake,
+      contractType,
+      symbol: params.symbol ?? params.asset,
+      duration: params.duration,
+      durationUnit: params.durationUnit,
+    });
+
+    const buyResult = await derivTradingWS.sendBuy(
+      proposal.proposalId,
+      proposal.askPrice
+    );
+
+    activeRealContractId = buyResult.contractId;
+
+    useAuthStore.getState().setBalance(buyResult.balanceAfter);
+
+    const expiryMs = getExpiryMs(params.duration, params.durationUnit);
+
+    tradeStore.setActivePosition({
+      contractId: buyResult.contractId,
+      asset: params.assetDisplayName,
+      direction: params.direction,
+      stake: buyResult.buyPrice,
+      payout: buyResult.payout,
+      entrySpot: 0,
+      currentSpot: 0,
+      currentPnl: 0,
+      startTime: now,
+      expiryTime: now + expiryMs,
+      status: "open",
+    });
+
+    onTradePlaced(params.asset, params.stake);
+    const tiltScoreAtEntry = useTiltStore.getState().score;
+
+    const tradeRecord: Trade = {
+      id: tradeId,
+      sessionId: sessionStore.currentSession?.id ?? "demo",
+      asset: params.asset,
+      assetDisplayName: params.assetDisplayName,
+      direction: params.direction,
+      stake: buyResult.buyPrice,
+      entrySpot: 0,
+      duration: params.duration,
+      durationUnit: params.durationUnit,
+      timestamp: now,
+      status: "active",
+      tiltScoreAtEntry,
+      wasRevengeFlag: tiltScoreAtEntry > 60,
+      heldToExpiry: false,
+    };
+    tradeStore.addTrade(tradeRecord);
+    tradeRepo.save(tradeRecord).catch(() => {});
+
+    onUserTradePlaced({
+      id: tradeId,
+      asset: params.asset,
+      assetDisplayName: params.assetDisplayName,
+      direction: params.direction,
+      stake: buyResult.buyPrice,
+      duration: params.duration,
+      durationUnit: params.durationUnit,
+      tiltScore: tiltScoreAtEntry,
+      entrySpot: 0,
+    });
+
+    derivTradingWS.subscribeOpenContract(buyResult.contractId, (data) => {
+      const poc = data.proposal_open_contract as {
+        entry_spot?: number;
+        current_spot?: number;
+        profit?: number;
+        buy_price?: number;
+        is_sold?: number;
+        is_expired?: number;
+        status?: string;
+        sell_price?: number;
+        contract_id?: number;
+      } | undefined;
+
+      if (!poc) return;
+
+      const entrySpot = poc.entry_spot ?? 0;
+      const currentSpot = poc.current_spot ?? 0;
+      const currentPnl = poc.profit ?? 0;
+
+      tradeStore.updateActivePosition({
+        entrySpot,
+        currentSpot,
+        currentPnl,
+      });
+
+      if (entrySpot && tradeRecord.entrySpot === 0) {
+        tradeRecord.entrySpot = entrySpot;
+        tradeStore.updateTrade(tradeId, { entrySpot });
+      }
+
+      const isClosed = poc.is_sold === 1 || poc.is_expired === 1;
+      if (isClosed) {
+        const buyPrice = poc.buy_price ?? buyResult.buyPrice;
+        const sellPrice = poc.sell_price ?? 0;
+        const realPnl = sellPrice - buyPrice;
+        const won = realPnl > 0;
+        const status = won ? "won" : "lost";
+
+        tradeStore.updateTrade(tradeId, {
+          exitSpot: currentSpot,
+          pnl: realPnl,
+          closedAt: Date.now(),
+          status,
+          heldToExpiry: poc.is_expired === 1,
+        });
+
+        tradeStore.recordTradeResult(won, realPnl);
+        tradeStore.setActivePosition(null);
+
+        onTradeResolved(won, poc.is_expired === 1);
+
+        const sessionId = sessionStore.currentSession?.id ?? "demo";
+        const tiltScore = useTiltStore.getState().score;
+        if (won) {
+          fireArenaEvent("POW", sessionId);
+          if (tiltScore < 30) {
+            setTimeout(() => fireArenaEvent("EXECUTION_PERFECT", sessionId), 500);
+          }
+        } else if (tiltScore > 60) {
+          fireArenaEvent("TILT_DETECTED", sessionId);
+        } else {
+          fireArenaEvent("BIAS_DETECTED", sessionId);
+        }
+
+        onUserTradeResolved({
+          id: tradeId,
+          won,
+          pnl: realPnl,
+          exitSpot: currentSpot,
+          heldToExpiry: poc.is_expired === 1,
+          durationMs: Date.now() - now,
+        });
+
+        tradeRepo.save({
+          ...tradeRecord,
+          exitSpot: currentSpot,
+          pnl: realPnl,
+          closedAt: Date.now(),
+          status,
+          heldToExpiry: poc.is_expired === 1,
+        }).catch(() => {});
+
+        activeRealContractId = null;
+      }
+    }).catch(() => {});
+
+    return { success: true };
+  } catch (err: unknown) {
+    activeRealContractId = null;
+    const msg = err && typeof err === "object" && "message" in err
+      ? (err as { message: string }).message
+      : "Trade failed";
+    return { success: false, error: msg };
+  }
+}
+
 export async function placeSimulatedTrade(params: {
   asset: string;
   assetDisplayName: string;
@@ -176,6 +369,11 @@ export async function placeSimulatedTrade(params: {
   duration: number;
   durationUnit: string;
 }): Promise<{ success: boolean; error?: string }> {
+  const { isRealTradeMode } = useTradeStore.getState();
+  if (isRealTradeMode && derivTradingWS.isAuthenticated) {
+    return placeRealTrade(params);
+  }
+
   if (activeSim) {
     return { success: false, error: "A simulated trade is already active." };
   }
@@ -532,5 +730,5 @@ export async function sellSimulatedTradeEarly(): Promise<void> {
 }
 
 export function hasActiveSimulation(): boolean {
-  return activeSim !== null;
+  return activeSim !== null || activeRealContractId !== null;
 }

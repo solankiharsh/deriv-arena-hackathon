@@ -1,24 +1,130 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { queryOne, execute } from '@/lib/db/postgres';
 import { createSession } from '@/lib/auth/session';
 import type { ArenaUser } from '@/lib/arena-types';
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const params = url.searchParams;
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+  const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
-  const acct1 = params.get('acct1');
-  const token1 = params.get('token1');
+  if (error) {
+    const desc = url.searchParams.get('error_description') || error;
+    console.warn(`[auth/callback] OAuth error: ${desc}`);
+    return NextResponse.redirect(`${origin}/login?error=oauth_denied`);
+  }
 
-  if (!acct1 || !token1) {
-    console.warn('[auth/callback] Missing acct1 or token1 params');
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  if (!code || !state) {
+    console.warn('[auth/callback] Missing code or state params');
     return NextResponse.redirect(`${origin}/login?error=missing_params`);
   }
 
-  const derivAccountId = acct1;
-  const loginId = params.get('cur1') || acct1;
-  console.log(`[auth/callback] OAuth callback: derivAccountId=${derivAccountId}`);
+  const cookieStore = await cookies();
+  const storedState = cookieStore.get('oauth_state')?.value;
+  if (state !== storedState) {
+    console.warn('[auth/callback] State mismatch — possible CSRF');
+    return NextResponse.redirect(`${origin}/login?error=state_mismatch`);
+  }
+
+  const codeVerifier = cookieStore.get('pkce_verifier')?.value;
+  if (!codeVerifier) {
+    console.warn('[auth/callback] Missing code_verifier cookie');
+    return NextResponse.redirect(`${origin}/login?error=missing_verifier`);
+  }
+
+  cookieStore.delete('pkce_verifier');
+  cookieStore.delete('oauth_state');
+
+  const clientId = process.env.NEXT_PUBLIC_DERIV_APP_ID || process.env.DERIV_APP_ID;
+  if (!clientId) {
+    return NextResponse.redirect(`${origin}/login?error=no_app_id`);
+  }
+
+  const redirectUri = `${origin}/api/auth/callback`;
+
+  let accessToken: string;
+  try {
+    const tokenRes = await fetch('https://auth.deriv.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        code,
+        code_verifier: codeVerifier,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errBody = await tokenRes.text();
+      console.error('[auth/callback] Token exchange failed:', tokenRes.status, errBody);
+      return NextResponse.redirect(`${origin}/login?error=token_exchange_failed`);
+    }
+
+    const tokenData = await tokenRes.json();
+    accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      console.error('[auth/callback] No access_token in response');
+      return NextResponse.redirect(`${origin}/login?error=no_token`);
+    }
+
+    console.log('[auth/callback] Token exchange succeeded');
+  } catch (err) {
+    console.error('[auth/callback] Token exchange error:', err);
+    return NextResponse.redirect(`${origin}/login?error=token_exchange_failed`);
+  }
+
+  let derivAccountId = '';
+  let demoAccountId = '';
+  try {
+    const accountsRes = await fetch(
+      'https://api.derivws.com/trading/v1/options/accounts',
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Deriv-App-ID': clientId,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    if (accountsRes.ok) {
+      const accountsData = await accountsRes.json();
+      console.log('[auth/callback] Accounts response:', JSON.stringify(accountsData).slice(0, 500));
+
+      const accounts: Array<{ id?: string; loginid?: string; account_type?: string; is_virtual?: boolean; currency?: string }> =
+        accountsData.data?.accounts || accountsData.accounts || accountsData.data || [];
+
+      if (Array.isArray(accounts) && accounts.length > 0) {
+        const demo = accounts.find(
+          (a) => a.account_type === 'demo' || a.is_virtual === true ||
+                 (a.loginid || a.id || '').toLowerCase().startsWith('vrtc') ||
+                 (a.loginid || a.id || '').toLowerCase().startsWith('vrw'),
+        );
+        const primary = accounts[0];
+        derivAccountId = (demo || primary).loginid || (demo || primary).id || '';
+        demoAccountId = demo ? (demo.loginid || demo.id || '') : '';
+      }
+    } else {
+      console.warn('[auth/callback] Accounts fetch failed:', accountsRes.status);
+    }
+  } catch (err) {
+    console.warn('[auth/callback] Accounts fetch error:', err);
+  }
+
+  if (!derivAccountId) {
+    derivAccountId = `deriv-${Date.now()}`;
+    console.log(`[auth/callback] No account ID from API, using fallback: ${derivAccountId}`);
+  }
+
+  const loginId = derivAccountId;
+  console.log(`[auth/callback] Using derivAccountId=${derivAccountId}, demoAccountId=${demoAccountId}`);
 
   let user: ArenaUser | null;
   try {
@@ -28,7 +134,6 @@ export async function GET(req: NextRequest) {
     );
   } catch (err) {
     console.error('[auth/callback] DB query failed:', err);
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     return NextResponse.redirect(`${origin}/login?error=create_failed`);
   }
 
@@ -49,7 +154,6 @@ export async function GET(req: NextRequest) {
       );
     } catch (err) {
       console.error('[auth/callback] Failed to create user:', err);
-      const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
       return NextResponse.redirect(`${origin}/login?error=create_failed`);
     }
   } else if (isAdmin && user.role !== 'admin') {
@@ -63,7 +167,6 @@ export async function GET(req: NextRequest) {
 
   if (!user) {
     console.error('[auth/callback] User creation returned null');
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     return NextResponse.redirect(`${origin}/login?error=create_failed`);
   }
 
@@ -74,9 +177,9 @@ export async function GET(req: NextRequest) {
     did: user.deriv_account_id,
     role: user.role,
     name: user.display_name,
+    dt: accessToken,
+    da: demoAccountId || derivAccountId,
   });
-
-  const origin = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
   if (needsRole && user.total_games === 0) {
     console.log(`[auth/callback] Redirecting to role selection: user=${user.id}`);
