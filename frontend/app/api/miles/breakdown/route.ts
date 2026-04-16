@@ -43,18 +43,27 @@ export async function GET() {
      GROUP BY source_type
      ORDER BY SUM(amount) DESC`,
     [userId],
-  );
+  ).catch((err) => {
+    console.warn('[miles/breakdown] deriv_miles_transactions query failed:', err);
+    return [] as SourceRow[];
+  });
 
   const balance = await queryOne<BalanceRow>(
     `SELECT total_earned::text, current_balance::text, tier
      FROM deriv_miles_balances WHERE user_id = $1`,
     [userId],
-  );
+  ).catch((err) => {
+    console.warn('[miles/breakdown] deriv_miles_balances query failed:', err);
+    return null;
+  });
 
   const streak = await queryOne<StreakRow>(
     `SELECT current_win_streak, best_win_streak FROM arena_users WHERE id = $1`,
     [userId],
-  );
+  ).catch((err) => {
+    console.warn('[miles/breakdown] arena_users streak query failed:', err);
+    return null;
+  });
 
   const today = (() => {
     const now = new Date();
@@ -71,7 +80,7 @@ export async function GET() {
        AND source_type = 'daily_login' AND source_id = $2
      LIMIT 1`,
     [userId, dailyLoginSourceId],
-  );
+  ).catch(() => null);
 
   const by_source = sourceRows.map((r) => ({
     source_type: r.source_type,

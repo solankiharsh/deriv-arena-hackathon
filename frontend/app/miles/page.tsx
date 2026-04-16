@@ -124,11 +124,11 @@ export default function MilesDashboardPage() {
 
   if (isHydrated && !user) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-bg-primary">
         <div className="container mx-auto px-4 py-16 flex flex-col items-center text-center gap-4">
           <Shield className="w-10 h-10 text-accent-primary" />
           <h1 className="text-3xl font-bold">Sign in to view your Miles</h1>
-          <p className="text-muted-foreground max-w-md">
+          <p className="text-text-muted max-w-md">
             Your XP pool, miles balance and earning history are tied to your account.
             Sign in to start earning from trades, streaks and daily logins.
           </p>
@@ -139,62 +139,62 @@ export default function MilesDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-bg-primary">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Deriv Miles Dashboard</h1>
-          <p className="text-muted-foreground">
+          <p className="text-text-muted">
             One XP pool. Miles are derived at a fixed 10 XP = 1 mile ratio.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-semibold">Your XP Pool</h2>
                 <Link href="/marketplace">
-                  <Button>
+                  <button className="btn-primary text-sm">
                     Browse Marketplace
                     <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
+                  </button>
                 </Link>
               </div>
 
               {breakdown ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-2">Total XP</p>
-                      <p className="text-3xl font-bold">
+                    <div className="text-center p-4 bg-white/[0.03] border border-border-subtle rounded-xl">
+                      <p className="text-sm text-text-muted mb-2">Total XP</p>
+                      <p className="text-3xl font-bold text-accent-primary">
                         {breakdown.total_xp.toLocaleString()}
                       </p>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-2">
+                    <div className="text-center p-4 bg-white/[0.03] border border-border-subtle rounded-xl">
+                      <p className="text-sm text-text-muted mb-2">
                         Miles (XP / 10)
                       </p>
                       <p className="text-3xl font-bold flex items-center justify-center gap-2">
-                        <MilesIcon size={24} className="text-yellow-500" />
+                        <MilesIcon size={24} className="text-accent-primary" />
                         {derivedMiles.toLocaleString()}
                       </p>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-2">
+                    <div className="text-center p-4 bg-white/[0.03] border border-border-subtle rounded-xl">
+                      <p className="text-sm text-text-muted mb-2">
                         Balance (spendable)
                       </p>
-                      <p className="text-3xl font-bold text-green-600">
+                      <p className="text-3xl font-bold text-success">
                         {breakdown.total_miles.toLocaleString()}
                       </p>
                     </div>
                   </div>
 
                   <div className="border-t border-border pt-4">
-                    <p className="text-sm font-medium mb-3 text-muted-foreground">
+                    <p className="text-sm font-medium mb-3 text-text-muted">
                       XP earned by source
                     </p>
                     {breakdown.by_source.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-4 text-center">
+                      <p className="text-sm text-text-muted py-4 text-center">
                         No earnings yet. Play a game, login daily or land a profitable trade to start earning XP.
                       </p>
                     ) : (
@@ -209,14 +209,14 @@ export default function MilesDashboardPage() {
                               key={entry.source_type}
                               className="flex items-center justify-between py-1"
                             >
-                              <div className="flex items-center gap-2 text-muted-foreground">
+                              <div className="flex items-center gap-2 text-text-muted">
                                 {meta.icon}
                                 <span>{meta.label}</span>
                                 <span className="text-xs opacity-60">
                                   ({entry.event_count} events)
                                 </span>
                               </div>
-                              <span className="text-foreground">
+                              <span className="text-text-primary">
                                 {entry.xp.toLocaleString()} XP
                               </span>
                             </div>
@@ -227,7 +227,7 @@ export default function MilesDashboardPage() {
                           <span>{breakdown.total_xp.toLocaleString()} XP</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">
+                          <span className="text-text-muted">
                             Miles = {breakdown.total_xp.toLocaleString()} / 10
                           </span>
                           <span className="text-accent-primary">
@@ -239,13 +239,13 @@ export default function MilesDashboardPage() {
                   </div>
                 </>
               ) : breakdownError ? (
-                <p className="text-sm text-red-500">Failed to load breakdown: {breakdownError}</p>
+                <p className="text-sm text-error">Failed to load breakdown: {breakdownError}</p>
               ) : (
-                <div className="h-48 animate-pulse bg-muted rounded"></div>
+                <div className="h-48 animate-pulse bg-white/[0.03] rounded-xl"></div>
               )}
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Tier Progress</h2>
               {userId && <MilesProgressBar userId={userId} />}
               {stats && stats.tier_benefits && (
@@ -253,8 +253,8 @@ export default function MilesDashboardPage() {
                   <p className="text-sm font-medium mb-2">Current Tier Benefits:</p>
                   <ul className="space-y-1">
                     {stats.tier_benefits.map((benefit, i) => (
-                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                        <span className="text-green-600 mt-0.5">+</span>
+                      <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
+                        <span className="text-success mt-0.5">+</span>
                         {benefit}
                       </li>
                     ))}
@@ -263,7 +263,7 @@ export default function MilesDashboardPage() {
               )}
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Earning Opportunities</h2>
               <div className="space-y-3">
                 {earningOpportunities.map((opp, i) => {
@@ -274,9 +274,9 @@ export default function MilesDashboardPage() {
                   return (
                     <div
                       key={i}
-                      className="flex items-start gap-3 p-4 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
+                      className="flex items-start gap-3 p-4 bg-white/[0.03] border border-border-subtle rounded-xl hover:bg-white/[0.06] transition-colors"
                     >
-                      <div className="text-primary">
+                      <div className="text-accent-primary">
                         {ICON_MAP[opp.icon] || <Star className="w-5 h-5" />}
                       </div>
                       <div className="flex-1">
@@ -293,7 +293,7 @@ export default function MilesDashboardPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{opp.description}</p>
+                        <p className="text-sm text-text-muted">{opp.description}</p>
                       </div>
                     </div>
                   );
@@ -303,12 +303,12 @@ export default function MilesDashboardPage() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Recent Transactions</h2>
               {breakdownLoading && transactions.length === 0 ? (
-                <div className="h-32 animate-pulse bg-muted rounded"></div>
+                <div className="h-32 animate-pulse bg-white/[0.03] rounded-xl"></div>
               ) : transactions.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
+                <p className="text-sm text-text-muted text-center py-8">
                   No transactions yet
                 </p>
               ) : (
@@ -317,12 +317,12 @@ export default function MilesDashboardPage() {
                     <div key={txn.id} className="flex items-start justify-between pb-3 border-b border-border last:border-0">
                       <div className="flex-1">
                         <p className="text-sm font-medium">{txn.description}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-text-muted">
                           {new Date(txn.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       <div className={`text-sm font-semibold flex items-center gap-1 ${
-                        txn.transaction_type === 'earn' ? 'text-green-600' : 'text-red-600'
+                        txn.transaction_type === 'earn' ? 'text-success' : 'text-error'
                       }`}>
                         {txn.transaction_type === 'earn' ? '+' : ''}
                         {parseFloat(txn.amount).toLocaleString()}
@@ -338,28 +338,28 @@ export default function MilesDashboardPage() {
               )}
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <h2 className="text-xl font-semibold mb-4">Recent Redemptions</h2>
               {redemptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
+                <p className="text-sm text-text-muted text-center py-8">
                   No redemptions yet
                 </p>
               ) : (
                 <div className="space-y-3">
                   {redemptions.slice(0, 3).map((redemption) => (
-                    <div key={redemption.id} className="p-3 bg-muted rounded-lg">
+                    <div key={redemption.id} className="p-3 bg-white/[0.03] border border-border-subtle rounded-xl">
                       <div className="flex items-start justify-between mb-1">
                         <p className="text-sm font-medium">{redemption.item_id}</p>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          redemption.status === 'fulfilled' ? 'bg-green-100 text-green-700' :
-                          redemption.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
+                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold ${
+                          redemption.status === 'fulfilled' ? 'bg-success/10 border border-success/20 text-success' :
+                          redemption.status === 'pending' ? 'bg-warning/10 border border-warning/20 text-warning' :
+                          'bg-error/10 border border-error/20 text-error'
                         }`}>
                           {redemption.status}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-text-muted">
                           {new Date(redemption.created_at).toLocaleDateString()}
                         </p>
                         <p className="text-xs font-medium">
@@ -373,15 +373,15 @@ export default function MilesDashboardPage() {
             </div>
 
             {breakdown && (
-              <div className="bg-card border border-border rounded-lg p-6">
+              <div className="bg-card border border-border rounded-xl p-6">
                 <h2 className="text-xl font-semibold mb-2">Streak</h2>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Current: <span className="font-semibold text-foreground">{breakdown.current_streak}</span>
+                <p className="text-sm text-text-muted mb-2">
+                  Current: <span className="font-semibold text-accent-primary">{breakdown.current_streak}</span>
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Best: <span className="font-semibold text-foreground">{breakdown.best_streak}</span>
+                <p className="text-sm text-text-muted">
+                  Best: <span className="font-semibold text-text-primary">{breakdown.best_streak}</span>
                 </p>
-                <p className="text-xs text-muted-foreground mt-3">
+                <p className="text-xs text-text-muted mt-3">
                   Hit 5 wins for 1,000 XP, 10 wins for 2,500 XP.
                 </p>
               </div>

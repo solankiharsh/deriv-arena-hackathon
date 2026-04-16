@@ -132,7 +132,7 @@ export const useMilesStore = create<MilesStore>((set, get) => ({
       const response = await fetch(`${API_URL}/api/miles/transactions?user_id=${userId}&limit=${limit}&offset=${offset}`);
       if (!response.ok) throw new Error('Failed to fetch transactions');
       const transactions = await response.json();
-      set({ transactions, loading: false });
+      set({ transactions: Array.isArray(transactions) ? transactions : [], loading: false });
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
     }
@@ -148,7 +148,7 @@ export const useMilesStore = create<MilesStore>((set, get) => ({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch catalog');
       const catalog = await response.json();
-      set({ catalog, loading: false });
+      set({ catalog: Array.isArray(catalog) ? catalog : [], loading: false });
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
     }
@@ -163,7 +163,7 @@ export const useMilesStore = create<MilesStore>((set, get) => ({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch redemptions');
       const redemptions = await response.json();
-      set({ redemptions, loading: false });
+      set({ redemptions: Array.isArray(redemptions) ? redemptions : [], loading: false });
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
     }
@@ -178,7 +178,7 @@ export const useMilesStore = create<MilesStore>((set, get) => ({
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch earning opportunities');
       const earningOpportunities = await response.json();
-      set({ earningOpportunities, loading: false });
+      set({ earningOpportunities: Array.isArray(earningOpportunities) ? earningOpportunities : [], loading: false });
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
     }

@@ -137,6 +137,24 @@ export async function GET() {
       },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isMissingTable = msg.includes('does not exist');
+    if (isMissingTable) {
+      console.warn('Partner stats: table missing, returning empty stats:', msg);
+      return NextResponse.json({
+        summary: {
+          templates_created: 0,
+          total_instances: 0,
+          total_players_reached: 0,
+          total_conversions: 0,
+          conversion_rate: 0,
+        },
+        daily_conversions: [],
+        template_performance: [],
+        funnel: [],
+        referrals: { total_clicks: 0, unique_players: 0, by_source: [] },
+      });
+    }
     console.error('Partner stats query failed:', err);
     return NextResponse.json(
       { error: 'Failed to load partner statistics' },

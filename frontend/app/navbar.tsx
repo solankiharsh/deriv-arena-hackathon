@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target, FileText } from 'lucide-react';
+import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target, FileText, Star, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import ArenaAuthButton from '@/components/auth/ArenaAuthButton';
@@ -41,6 +41,8 @@ export default function Navbar() {
     { href: '/competitions',   label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard',    label: 'Leaderboard',   Icon: Trophy },
     { href: '/create',         label: 'Create',        Icon: PlusCircle },
+    { href: '/miles',          label: 'Miles',          Icon: Star },
+    { href: '/marketplace',    label: 'Marketplace',    Icon: ShoppingBag },
     ...((user?.role === 'partner' || user?.role === 'admin') ? [{ href: '/partner', label: 'Partner', Icon: Target }] : []),
     ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Admin', Icon: Shield }] : []),
     { href: '/whitepaper',     label: 'Whitepaper',    Icon: FileText },
@@ -62,7 +64,7 @@ export default function Navbar() {
       <div className="container-colosseum">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-3 group flex-shrink-0">
             <AppLogo className="transition-transform group-hover:scale-105" />
             <div>
               <GradientText
@@ -72,7 +74,7 @@ export default function Navbar() {
               >
                 DerivArena
               </GradientText>
-              <div className="text-xs text-text-muted -mt-0.5">Trading Competition Platform</div>
+              <div className="text-[10px] text-text-muted -mt-0.5 hidden lg:block">Trading Platform</div>
             </div>
           </Link>
 
@@ -86,7 +88,7 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     className={`
-                      relative flex items-center gap-1.5 px-3 py-2.5 rounded-none font-medium transition-all duration-200 text-sm whitespace-nowrap
+                      relative flex items-center gap-1 px-2 py-2.5 rounded-none font-medium transition-all duration-200 text-xs whitespace-nowrap
                       ${active
                         ? 'text-accent-primary'
                         : 'text-text-secondary hover:text-text-primary'
@@ -111,7 +113,7 @@ export default function Navbar() {
                 href="https://developers.deriv.com/docs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
+                className="relative flex items-center gap-1 px-2 py-2.5 text-xs font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
               >
                 <span>API Docs</span>
               </a>
@@ -121,7 +123,7 @@ export default function Navbar() {
                 href="https://x.com/HarshSolan24317"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
+                className="relative flex items-center gap-1 px-2 py-2.5 text-xs font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
                 title="X / Twitter"
               >
                 <XIcon className="w-4 h-4" />

@@ -163,7 +163,7 @@ export function SymbolSelector({ compact = false }: SymbolSelectorProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -4, scale: 0.98 }}
           transition={{ duration: 0.15 }}
-          className="fixed z-[9999] rounded-xl shadow-2xl max-h-80 flex flex-col overflow-hidden border border-white/[0.08]"
+          className="fixed z-[9999] rounded-xl shadow-2xl max-h-96 flex flex-col overflow-hidden border border-white/[0.08]"
           style={{
             top: dropdownStyle.top,
             left: dropdownStyle.left,
@@ -193,7 +193,7 @@ export function SymbolSelector({ compact = false }: SymbolSelectorProps) {
             </div>
           </div>
 
-          <div className="overflow-y-auto flex-1 scrollbar-custom">
+          <div className="overflow-y-scroll flex-1 scrollbar-custom" style={{ overscrollBehavior: 'contain' }}>
             {groupedSymbols.size === 0 ? (
               <div className="p-4 text-center text-xs text-text-muted">
                 {availableSymbols.length === 0
