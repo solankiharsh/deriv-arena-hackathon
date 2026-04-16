@@ -7,6 +7,7 @@ import AppProviders from '@/providers/AppProviders';
 import { Toaster } from '@/components/ui/toaster';
 import { Suspense } from 'react';
 import { ReferralCapture } from '@/components/ReferralCapture';
+import { DerivAutoConnect } from '@/components/DerivAutoConnect';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -29,6 +30,10 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'DerivArena — Gamified Trading Competitions on Deriv',
   description: 'Compete in gamified trading competitions using Deriv exotic contracts. Sortino-ranked leaderboards, AI coaching, and a conversion engine disguised as a game.',
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -47,6 +52,7 @@ export default function RootLayout({
           <ReferralCapture />
         </Suspense>
         <AppProviders>
+        <DerivAutoConnect />
         <Navbar />
         {children}
         <footer className="border-t border-white/[0.04] py-4 px-6 mt-auto">

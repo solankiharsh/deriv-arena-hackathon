@@ -7,6 +7,10 @@
 
 # Go
 /backend/bin/
+/backend/server
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
 
 # Node / Next.js
 /frontend/node_modules/

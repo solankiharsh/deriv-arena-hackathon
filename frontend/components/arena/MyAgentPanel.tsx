@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { BarChart3, Trophy, ChevronDown, ClipboardCheck, MessageSquare, Settings, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { usePrivy } from '@privy-io/react-auth';
+// usePrivy removed — using arena auth instead
 import { useAuthStore } from '@/store/authStore';
 import { useMyAgent } from '@/hooks/useArenaData';
 import { OnboardingChecklist } from './OnboardingChecklist';
@@ -23,7 +23,7 @@ const PANEL_TABS: { id: PanelTab; label: string; icon: typeof Trophy }[] = [
 
 export function MyAgentPanel() {
   const { isAuthenticated, agent, onboardingTasks, onboardingProgress, setAuth } = useAuthStore();
-  const { user } = usePrivy();
+  const user = null as { twitter?: { profilePictureUrl?: string | null; name?: string | null; username?: string | null } } | null;
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<PanelTab>('stats');
   const [copiedWallet, setCopiedWallet] = useState(false);

@@ -1,243 +1,287 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { PlusCircle, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
-import { createCompetition, type Competition } from '@/lib/derivarena-api';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Plus, ArrowLeft, Trophy, Ghost, Flame, Brain, Target, Zap, Clock, Users, Loader2, Share2 } from 'lucide-react';
+import { arenaApi } from '@/lib/arena-api';
+import { useArenaAuth } from '@/store/arenaAuthStore';
+import type { GameMode, GameTemplate } from '@/lib/arena-types';
+import { GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '@/lib/arena-types';
+import GradientText from '@/components/reactbits/GradientText';
+import ShareGameModal from '@/components/ShareGameModal';
 
-const DURATION_OPTIONS = [
-  { value: 1, label: '1 hour' },
-  { value: 6, label: '6 hours' },
-  { value: 24, label: '24 hours' },
-  { value: 72, label: '3 days' },
-  { value: 168, label: '1 week' },
-] as const;
+const MODE_OPTIONS: { value: GameMode; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }[] = [
+  { value: 'classic', icon: Trophy, color: '#E8B45E' },
+  { value: 'phantom_league', icon: Ghost, color: '#8B5CF6' },
+  { value: 'boxing_ring', icon: Flame, color: '#EF4444' },
+  { value: 'anti_you', icon: Brain, color: '#06B6D4' },
+  { value: 'war_room', icon: Target, color: '#10B981' },
+  { value: 'behavioral_xray', icon: Zap, color: '#EC4899' },
+];
 
-const CONTRACT_PRESETS = ['CALL', 'PUT', 'ACCU', 'MULTUP', 'MULTDOWN', 'DIGITEVEN', 'DIGITODD'] as const;
+export default function CreateTemplatePage() {
+  const router = useRouter();
+  const { user, fetchUser } = useArenaAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [myTemplates, setMyTemplates] = useState<GameTemplate[]>([]);
 
-export default function CreateCompetitionPage() {
   const [name, setName] = useState('');
-  const [durationHours, setDurationHours] = useState<number>(24);
-  const [startingBalance, setStartingBalance] = useState('10000');
-  const [partnerName, setPartnerName] = useState('');
-  const [appId, setAppId] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['CALL', 'PUT']);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<Competition | null>(null);
+  const [description, setDescription] = useState('');
+  const [gameMode, setGameMode] = useState<GameMode>('classic');
+  const [duration, setDuration] = useState(15);
+  const [maxPlayers, setMaxPlayers] = useState(50);
+  const [sharingTemplate, setSharingTemplate] = useState<GameTemplate | null>(null);
 
-  const toggleType = (t: string) => {
-    setSelectedTypes((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
-    );
-  };
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  useEffect(() => {
+    if (user) {
+      arenaApi.templates.mine().then(({ templates }) => setMyTemplates(templates)).catch(() => {});
+    }
+  }, [user]);
+
+  const isPartnerOrAdmin = user?.role === 'partner' || user?.role === 'admin';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setCreated(null);
-    if (!name.trim()) {
-      setError('Competition name is required.');
-      return;
-    }
-    if (selectedTypes.length === 0) {
-      setError('Pick at least one contract type.');
-      return;
-    }
-    const bal = startingBalance.trim();
-    if (!bal || Number(bal) <= 0) {
-      setError('Starting balance must be a positive number.');
-      return;
-    }
+    if (!name.trim() || !isPartnerOrAdmin) return;
 
-    setSubmitting(true);
+    setIsSubmitting(true);
     try {
-      const comp = await createCompetition({
+      const { template } = await arenaApi.templates.create({
         name: name.trim(),
-        duration_hours: durationHours,
-        contract_types: selectedTypes,
-        starting_balance: bal,
-        partner_name: partnerName.trim() || undefined,
-        app_id: appId.trim() || undefined,
+        description: description.trim(),
+        game_mode: gameMode,
+        config: {
+          duration_minutes: duration,
+          max_players: maxPlayers,
+          allowed_markets: ['R_100', 'R_50', 'R_75', 'R_10', 'R_25'],
+          stake_range: [1, 100],
+          contract_types: ['CALL', 'PUT', 'DIGITOVER', 'DIGITUNDER'],
+        },
       });
-      setCreated(comp);
+
+      setMyTemplates(prev => [template, ...prev]);
+      setName('');
+      setDescription('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Request failed');
+      console.error('Create failed:', err);
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-text-muted mb-4">Sign in to create game templates</p>
+          <button onClick={() => router.push('/login')} className="btn-primary">
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isPartnerOrAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-display font-bold text-text-primary mb-2">
+            Partner Access Required
+          </h2>
+          <p className="text-text-secondary text-sm mb-4">
+            Only partners and admins can create game templates.
+            Switch your role in settings to get started.
+          </p>
+          <button onClick={() => router.push('/arena')} className="btn-secondary">
+            Back to Arena
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-[70vh] bg-bg-primary">
-      <div className="container-colosseum py-10 sm:py-14 max-w-xl">
-        <Link
-          href="/competitions"
-          className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary mb-8"
+    <div className="min-h-screen bg-bg-primary">
+      <div className="container-colosseum py-8 max-w-3xl">
+        <button
+          onClick={() => router.push('/arena')}
+          className="flex items-center gap-2 text-text-muted hover:text-text-primary transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          All competitions
-        </Link>
+          <span className="text-sm">Back to Arena</span>
+        </button>
 
-        <div className="border border-white/[0.1] bg-white/[0.03] p-6 sm:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <PlusCircle className="w-8 h-8 text-accent-primary" />
-            <h1 className="text-2xl font-bold font-display text-text-primary">Create competition</h1>
+        <h1 className="text-2xl font-display font-bold mb-1">
+          <GradientText
+            colors={['#E8B45E', '#F5C978', '#E8B45E']}
+            animationSpeed={4}
+            className="font-display font-bold"
+          >
+            Create Game Template
+          </GradientText>
+        </h1>
+        <p className="text-text-secondary text-sm mb-8">
+          Design a reusable competition template. Players will create instances from it.
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Name */}
+          <div>
+            <label className="text-xs text-text-muted uppercase tracking-wider mb-2 block">
+              Template Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Quick Fire Classic"
+              className="input"
+              required
+              maxLength={80}
+            />
           </div>
 
-          <p className="text-sm text-text-muted mb-6">
-            Posts to <code className="text-xs">POST /api/competitions</code> on your DerivArena backend.
-            The full product roadmap lives in <code className="text-xs">docs/ROADMAP.md</code> in this repository.
-          </p>
+          {/* Description */}
+          <div>
+            <label className="text-xs text-text-muted uppercase tracking-wider mb-2 block">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe what makes this competition unique..."
+              className="input min-h-[80px] resize-none"
+              maxLength={500}
+            />
+          </div>
 
-          {created && (
-            <div className="mb-6 p-4 border border-emerald-500/30 bg-emerald-500/10 text-sm">
-              <div className="flex items-center gap-2 text-emerald-400 font-semibold mb-2">
-                <CheckCircle2 className="w-4 h-4" />
-                Competition created
-              </div>
-              <p className="text-text-muted text-xs mb-1">ID</p>
-              <code className="text-xs text-text-primary break-all">{created.id}</code>
-              {created.share_url && (
-                <>
-                  <p className="text-text-muted text-xs mt-3 mb-1">Share URL</p>
-                  <a
-                    href={created.share_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-accent-primary break-all hover:underline"
-                  >
-                    {created.share_url}
-                  </a>
-                </>
-              )}
-              <div className="mt-4 flex gap-3 flex-wrap">
-                <Link
-                  href={`/competitions/${created.id}`}
-                  className="text-xs font-semibold text-accent-primary hover:underline"
-                >
-                  Open competition →
-                </Link>
-                <Link
-                  href="/competitions"
-                  className="text-xs text-text-muted hover:text-text-secondary"
-                >
-                  View list
-                </Link>
+          {/* Game Mode */}
+          <div>
+            <label className="text-xs text-text-muted uppercase tracking-wider mb-3 block">
+              Game Mode
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {MODE_OPTIONS.map(({ value, icon: Icon, color }) => (
                 <button
+                  key={value}
                   type="button"
-                  className="text-xs text-text-muted hover:text-text-secondary"
-                  onClick={() => {
-                    setCreated(null);
-                    setName('');
-                  }}
+                  onClick={() => setGameMode(value)}
+                  className={`
+                    text-left p-4 rounded-card border transition-all
+                    ${gameMode === value
+                      ? 'border-accent-primary bg-accent-primary/5'
+                      : 'border-border bg-card hover:border-border-strong'
+                    }
+                  `}
                 >
-                  Create another
+                  <Icon className="w-5 h-5 mb-2" style={{ color }} />
+                  <div className="text-sm font-display font-bold uppercase tracking-wide text-text-primary">
+                    {GAME_MODE_LABELS[value]}
+                  </div>
+                  <p className="text-[11px] text-text-muted mt-1 line-clamp-2">
+                    {GAME_MODE_DESCRIPTIONS[value]}
+                  </p>
                 </button>
-              </div>
+              ))}
             </div>
-          )}
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Duration & Max Players */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-1.5">Name</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
-                placeholder="Weekend Volatility Cup"
-                maxLength={120}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-1.5">Duration</label>
-              <select
-                value={durationHours}
-                onChange={(e) => setDurationHours(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
-              >
-                {DURATION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-1.5">
-                Starting balance (demo)
+              <label className="text-xs text-text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> Duration (minutes)
               </label>
               <input
-                value={startingBalance}
-                onChange={(e) => setStartingBalance(e.target.value)}
                 type="number"
-                min={100}
-                max={100000}
-                step={100}
-                className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
+                value={duration}
+                onChange={(e) => setDuration(Math.max(5, parseInt(e.target.value) || 15))}
+                className="input"
+                min={5}
+                max={120}
               />
             </div>
-
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-2">
-                Contract types
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {CONTRACT_PRESETS.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => toggleType(t)}
-                    className={`px-2.5 py-1 text-xs font-mono border transition-colors ${
-                      selectedTypes.includes(t)
-                        ? 'border-accent-primary/50 bg-accent-primary/15 text-accent-primary'
-                        : 'border-white/10 text-text-muted hover:border-white/20'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-1.5">
-                Partner display name <span className="opacity-50">(optional)</span>
+              <label className="text-xs text-text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
+                <Users className="w-3 h-3" /> Max Players
               </label>
               <input
-                value={partnerName}
-                onChange={(e) => setPartnerName(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
-                placeholder="My community"
+                type="number"
+                value={maxPlayers}
+                onChange={(e) => setMaxPlayers(Math.max(2, parseInt(e.target.value) || 50))}
+                className="input"
+                min={2}
+                max={500}
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-text-muted mb-1.5">
-                Deriv <code className="text-[10px]">app_id</code> <span className="opacity-50">(optional)</span>
-              </label>
-              <input
-                value={appId}
-                onChange={(e) => setAppId(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-primary border border-white/10 text-text-primary text-sm focus:border-accent-primary/50 focus:outline-none"
-                placeholder="Referral / commission attribution"
-              />
-            </div>
-
-            {error && (
-              <div className="text-sm text-red-400 border border-red-500/20 bg-red-500/10 px-3 py-2">{error}</div>
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            type="submit"
+            disabled={isSubmitting || !name.trim()}
+            className="btn-primary w-full py-4 text-lg"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Plus className="w-5 h-5" />
+                Create Template
+              </>
             )}
+          </motion.button>
+        </form>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 py-3 font-bold text-sm bg-accent-primary/15 border border-accent-primary/40 text-accent-primary hover:bg-accent-primary/25 disabled:opacity-50"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {submitting ? 'Creating…' : 'Create competition'}
-            </button>
-          </form>
-        </div>
+        {/* My Templates */}
+        {myTemplates.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-lg font-display font-bold text-text-primary mb-4 uppercase tracking-wider">
+              Your Templates
+            </h2>
+            <div className="space-y-3">
+              {myTemplates.map((t) => (
+                <div key={t.id} className="bg-card border border-border rounded-card p-4 flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-text-primary">{t.name}</div>
+                    <div className="text-xs text-text-muted">
+                      {GAME_MODE_LABELS[t.game_mode as GameMode]} · {t.play_count} plays
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSharingTemplate(t)}
+                    className="btn-ghost text-xs flex items-center gap-1"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {sharingTemplate && user && (
+          <ShareGameModal
+            templateName={sharingTemplate.name}
+            templateSlug={sharingTemplate.slug}
+            gameMode={sharingTemplate.game_mode}
+            durationMinutes={
+              typeof sharingTemplate.config === 'object'
+                ? (sharingTemplate.config as unknown as Record<string, unknown>).duration_minutes as number | undefined
+                : undefined
+            }
+            partnerId={user.id}
+            onClose={() => setSharingTemplate(null)}
+          />
+        )}
       </div>
     </div>
   );

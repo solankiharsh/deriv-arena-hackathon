@@ -235,7 +235,7 @@ export default function Home() {
 
                 {/* Hero Stats */}
                 <motion.div
-                  className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-10"
+                  className="grid grid-cols-3 gap-3 sm:gap-4 max-w-lg mx-auto mb-10"
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.3, duration: 0.5 }}

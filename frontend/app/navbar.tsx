@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, PlusCircle, LayoutList, Menu, X } from 'lucide-react';
+import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
-import UserAuthButton from '@/components/auth/UserAuthButton';
+import ArenaAuthButton from '@/components/auth/ArenaAuthButton';
+import { useArenaAuth } from '@/store/arenaAuthStore';
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -16,31 +18,31 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-function DerivLogo({ className }: { className?: string }) {
+function AppLogo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} fill="none">
-      <rect width="32" height="32" rx="6" fill="url(#deriv-grad)" />
-      <path d="M10 8h6c4.4 0 8 3.6 8 8s-3.6 8-8 8h-2l-4-4V8z" fill="white" fillOpacity="0.9" />
-      <path d="M14 12l4 4-4 4" stroke="#0D47A1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <defs>
-        <linearGradient id="deriv-grad" x1="0" y1="0" x2="32" y2="32">
-          <stop stopColor="#1976D2" />
-          <stop offset="1" stopColor="#0D47A1" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <Image
+      src="/icon.png"
+      alt="DerivArena"
+      width={40}
+      height={40}
+      className={`rounded-lg ${className ?? ''}`}
+      priority
+    />
   );
 }
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useArenaAuth();
 
   const navLinks = [
     { href: '/arena',          label: 'Arena',          Icon: Swords },
     { href: '/competitions',   label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard',    label: 'Leaderboard',   Icon: Trophy },
     { href: '/create',         label: 'Create',        Icon: PlusCircle },
+    ...((user?.role === 'partner' || user?.role === 'admin') ? [{ href: '/partner', label: 'Partner', Icon: Target }] : []),
+    ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Admin', Icon: Shield }] : []),
   ];
 
   const isActive = (href: string) => {
@@ -60,7 +62,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <DerivLogo className="w-10 h-10 transition-transform group-hover:scale-105" />
+            <AppLogo className="transition-transform group-hover:scale-105" />
             <div>
               <GradientText
                 colors={['#E8B45E', '#D4A04A', '#F0C97A', '#E8B45E']}
@@ -74,7 +76,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Navigation */}
-          <ul className="hidden md:flex gap-0 items-center h-full overflow-x-auto scrollbar-none">
+          <ul className="hidden md:flex gap-0 items-center h-full">
             {navLinks.map((link) => {
               const Icon = link.Icon;
               const active = isActive(link.href);
@@ -125,7 +127,7 @@ export default function Navbar() {
               </a>
             </li>
             <li className="relative h-full flex items-center ml-2">
-              <UserAuthButton />
+              <ArenaAuthButton />
             </li>
           </ul>
 
@@ -207,7 +209,7 @@ export default function Navbar() {
                   transition={{ duration: 0.2, delay: (navLinks.length + 1) * 0.05 }}
                   className="px-4 pt-2"
                 >
-                  <UserAuthButton />
+                  <ArenaAuthButton />
                 </motion.li>
               </ul>
             </motion.div>

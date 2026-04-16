@@ -1,5 +1,16 @@
 .PHONY: help dev backend frontend db-up db-down db-migrate db-rollback clean test stop status
 
+# Directory containing this Makefile (so `make -C … dev` still works)
+MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# Local PostgreSQL via Homebrew (no Podman/Docker required)
+PSQL ?= /opt/homebrew/opt/postgresql@16/bin/psql
+PG_ISREADY ?= /opt/homebrew/opt/postgresql@16/bin/pg_isready
+DB_HOST ?= localhost
+DB_PORT ?= 5432
+DB_USER ?= derivarena
+DB_NAME ?= derivarena
+
 help:
 	@echo "DerivArena Development Commands"
 	@echo ""
@@ -9,7 +20,7 @@ help:
 	@echo "  make backend      - Start backend only"
 	@echo "  make frontend     - Start frontend only"
 	@echo ""
-	@echo "  make db-up        - Start PostgreSQL (port 5436)"
+	@echo "  make db-up        - Start PostgreSQL (port $(DB_PORT))"
 	@echo "  make db-down      - Stop PostgreSQL"
 	@echo "  make db-migrate   - Run database migrations"
 	@echo "  make db-rollback  - Rollback migrations"
@@ -18,37 +29,47 @@ help:
 	@echo "  make clean        - Clean build artifacts"
 
 dev:
-	@./scripts/dev.sh
+	@echo "🎯 DerivArena — starting PostgreSQL, API, and frontend…"
+	@$(MAKE) -C "$(MAKEFILE_DIR)" db-up
+	@sleep 1
+	@$(MAKE) -C "$(MAKEFILE_DIR)" db-migrate
+	@SKIP_DB=1 bash "$(MAKEFILE_DIR)scripts/dev.sh"
 
 backend:
-	@export $$(cat .env | grep -v '^#' | xargs) && cd backend && go run cmd/server/main.go
+	@cd "$(MAKEFILE_DIR)backend" && \
+		DATABASE_URL=$${DATABASE_URL:-postgresql://$(DB_USER):$(DB_USER)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)} \
+		PORT=$${PORT:-8090} \
+		SHARE_BASE_URL=$${SHARE_BASE_URL:-http://localhost:3000} \
+		go run cmd/server/main.go
 
 frontend:
-	@cd frontend && export NEXT_PUBLIC_API_URL=http://localhost:8090 && npm run dev -- -p 3000
+	@cd "$(MAKEFILE_DIR)frontend" && NEXT_PUBLIC_API_URL=http://localhost:8090 npm run dev -- -p 3000
 
 db-up:
-	@docker ps -a | grep derivarena-postgres > /dev/null 2>&1 && \
-		(docker start derivarena-postgres || true) || \
-		docker run -d --name derivarena-postgres \
-			-e POSTGRES_USER=derivarena \
-			-e POSTGRES_PASSWORD=derivarena \
-			-e POSTGRES_DB=derivarena \
-			-p 5436:5432 \
-			postgres:16-alpine
-	@echo "✅ PostgreSQL running on port 5436"
+	@$(PG_ISREADY) -h $(DB_HOST) -p $(DB_PORT) > /dev/null 2>&1 && \
+		echo "✅ PostgreSQL already running on port $(DB_PORT)" || \
+		(echo "Starting PostgreSQL via brew services..." && brew services start postgresql@16 && sleep 2)
+	@$(PG_ISREADY) -h $(DB_HOST) -p $(DB_PORT) > /dev/null 2>&1 || (echo "❌ PostgreSQL failed to start"; exit 1)
+	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$(DB_USER)'" 2>/dev/null | grep -q 1 || \
+		$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -d postgres -c "CREATE USER $(DB_USER) WITH PASSWORD '$(DB_USER)';"
+	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$(DB_NAME)'" 2>/dev/null | grep -q 1 || \
+		(/opt/homebrew/opt/postgresql@16/bin/createdb -h $(DB_HOST) -p $(DB_PORT) -O $(DB_USER) $(DB_NAME) && \
+		$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE $(DB_NAME) TO $(DB_USER);" && \
+		$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -d $(DB_NAME) -c "GRANT ALL ON SCHEMA public TO $(DB_USER);")
+	@echo "✅ PostgreSQL running on port $(DB_PORT)"
 
 db-down:
-	@docker stop derivarena-postgres || true
+	@brew services stop postgresql@16 || true
 	@echo "✅ PostgreSQL stopped"
 
 db-migrate:
-	@docker exec derivarena-postgres psql -U derivarena -d derivarena -c "\dt" > /dev/null 2>&1 && \
+	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -c "\dt" 2>/dev/null | grep -q competitions && \
 		echo "✅ Database already migrated" || \
-		(docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql && \
+		($(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.up.sql && \
 		echo "✅ Migrations complete")
 
 db-rollback:
-	@docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.down.sql
+	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.down.sql
 	@echo "✅ Migrations rolled back"
 
 stop:
@@ -63,7 +84,7 @@ status:
 	@echo ""
 	@curl -s http://localhost:8090/health > /dev/null 2>&1 && echo "  ✅ Backend:  http://localhost:8090" || echo "  ❌ Backend:  not running"
 	@curl -s http://localhost:3000 > /dev/null 2>&1 && echo "  ✅ Frontend: http://localhost:3000" || echo "  ❌ Frontend: not running"
-	@docker ps | grep derivarena-postgres > /dev/null 2>&1 && echo "  ✅ Database: localhost:5436" || echo "  ❌ Database: not running"
+	@$(PG_ISREADY) -h $(DB_HOST) -p $(DB_PORT) > /dev/null 2>&1 && echo "  ✅ Database: $(DB_HOST):$(DB_PORT)" || echo "  ❌ Database: not running"
 
 clean:
 	@rm -rf backend/tmp/

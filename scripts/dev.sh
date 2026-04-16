@@ -1,94 +1,111 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# Start Go API + Next.js for local development. Intended for: make dev
+set -euo pipefail
 
-echo "🎯 DerivArena Development Server"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT"
+
+echo "🎯 DerivArena development stack"
 echo ""
 
-# Load environment
-if [ ! -f .env ]; then
-    echo "❌ .env file not found!"
-    exit 1
+# Optional project .env (shell-compatible KEY=value lines)
+set -a
+if [[ -f "$ROOT/.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+fi
+set +a
+
+: "${DATABASE_URL:=postgresql://derivarena:derivarena@localhost:5432/derivarena}"
+: "${PORT:=8090}"
+: "${SHARE_BASE_URL:=http://localhost:3000}"
+export DATABASE_URL PORT SHARE_BASE_URL
+
+if [[ "${SKIP_DB:-}" != "1" ]]; then
+  echo "Starting PostgreSQL and migrations..."
+  make -C "$ROOT" db-up
+  sleep 2
+  make -C "$ROOT" db-migrate
 fi
 
-export $(cat .env | grep -v '^#' | xargs)
-
-# Check PostgreSQL
-if ! docker ps | grep -q derivarena-postgres; then
-    echo "Starting PostgreSQL..."
-    make db-up
-    sleep 2
-    make db-migrate
-fi
-
-# Kill any existing processes
-echo "Cleaning up old processes..."
+echo "Cleaning up old listeners on 8090 / 3000..."
 lsof -ti:8090 2>/dev/null | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 2>/dev/null | xargs kill -9 2>/dev/null || true
-rm -rf frontend/.next/dev/lock 2>/dev/null || true
+rm -rf "$ROOT/frontend/.next/dev/lock" 2>/dev/null || true
 
-# Start backend
 echo ""
-echo "🚀 Starting backend on http://localhost:8090..."
-cd backend
+echo "📦 Go modules (cached after first run)..."
+(cd "$ROOT/backend" && go mod download)
+
+echo ""
+echo "🚀 Starting backend on http://localhost:${PORT}/ ..."
+cd "$ROOT/backend"
 go run cmd/server/main.go > /tmp/derivarena-backend.log 2>&1 &
 BACKEND_PID=$!
-cd ..
-sleep 2
+cd "$ROOT"
 
-# Test backend
-if curl -s http://localhost:8090/health > /dev/null; then
-    echo "✅ Backend running (PID: $BACKEND_PID)"
-else
-    echo "❌ Backend failed to start. Check /tmp/derivarena-backend.log"
-    kill $BACKEND_PID 2>/dev/null || true
+HEALTH_URL="http://localhost:${PORT}/health"
+echo "   Waiting for /health (first compile can take 1–3 minutes)..."
+backend_ok=
+for _ in $(seq 1 180); do
+  if curl -sf "$HEALTH_URL" > /dev/null; then
+    backend_ok=1
+    break
+  fi
+  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo "❌ Backend exited before listening. Log:"
+    tail -n 40 /tmp/derivarena-backend.log
     exit 1
+  fi
+  sleep 1
+done
+
+if [[ -n "$backend_ok" ]]; then
+  echo "✅ Backend running (PID: $BACKEND_PID)"
+else
+  echo "❌ Backend did not respond on $HEALTH_URL in time. See: tail -f /tmp/derivarena-backend.log"
+  kill "$BACKEND_PID" 2>/dev/null || true
+  exit 1
 fi
 
-# Install frontend deps if needed
-if [ ! -d "frontend/node_modules" ]; then
-    echo ""
-    echo "📦 Installing frontend dependencies..."
-    cd frontend && npm install --silent && cd ..
+if [[ ! -d "$ROOT/frontend/node_modules" ]]; then
+  echo ""
+  echo "📦 Installing frontend dependencies..."
+  (cd "$ROOT/frontend" && npm install --silent)
 fi
 
-# Start frontend
 echo ""
 echo "🌐 Starting frontend on http://localhost:3000..."
-cd frontend
-export NEXT_PUBLIC_API_URL=http://localhost:8090
+cd "$ROOT/frontend"
+export NEXT_PUBLIC_API_URL="http://localhost:${PORT}"
 npm run dev -- -p 3000 > /tmp/derivarena-frontend.log 2>&1 &
 FRONTEND_PID=$!
-cd ..
+cd "$ROOT"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ DerivArena is running!"
+echo "✅ DerivArena is running"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "🌐 Frontend:  http://localhost:3000"
-echo "🔧 Backend:   http://localhost:8090"
-echo "💚 Health:    http://localhost:8090/health"
+echo "  Frontend:  http://localhost:3000"
+echo "  Backend:   http://localhost:${PORT}"
+echo "  Health:    http://localhost:${PORT}/health"
 echo ""
-echo "📝 Logs:"
-echo "   Backend:  tail -f /tmp/derivarena-backend.log"
-echo "   Frontend: tail -f /tmp/derivarena-frontend.log"
+echo "  Logs:      tail -f /tmp/derivarena-backend.log"
+echo "             tail -f /tmp/derivarena-frontend.log"
 echo ""
-echo "🛑 To stop:"
-echo "   kill $BACKEND_PID $FRONTEND_PID"
-echo "   Or just close this terminal"
+echo "  Stop:      make stop   (or Ctrl+C here)"
 echo ""
-echo "Press Ctrl+C to stop all services..."
 
-# Cleanup on exit
 cleanup() {
-    echo ""
-    echo "Stopping services..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-    echo "Stopped."
-    exit 0
+  echo ""
+  echo "Stopping services..."
+  kill "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
+  echo "Stopped."
+  exit 0
 }
 
 trap cleanup INT TERM
 
-# Keep running
 wait

@@ -1,194 +1,187 @@
 'use client';
 
-import { useState } from 'react';
-import useSWR from 'swr';
-import { Trophy, TrendingUp, Users, Target } from 'lucide-react';
-import { getLeaderboard } from '@/lib/api';
-import { Agent } from '@/lib/types';
-import { formatPercent, formatCurrency } from '@/lib/design-system';
-import { AgentProfileModal } from '@/components/arena/AgentProfileModal';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Trophy, Crown, TrendingUp, Medal, Star, Users } from 'lucide-react';
+import { arenaApi } from '@/lib/arena-api';
+import type { GlobalLeaderboardEntry, GameMode } from '@/lib/arena-types';
+import { GAME_MODE_LABELS } from '@/lib/arena-types';
+import GradientText from '@/components/reactbits/GradientText';
 
-const GOLD  = '#E8B45E';
-const YES_C = '#4ade80';
-const NO_C  = '#f87171';
-const BG    = '#07090F';
-const SURF  = '#0C1020';
+const TABS: { value: GameMode | 'global'; label: string }[] = [
+  { value: 'global', label: 'Arena Rating' },
+  { value: 'classic', label: 'Classic' },
+  { value: 'phantom_league', label: 'Phantom' },
+  { value: 'boxing_ring', label: 'Boxing' },
+  { value: 'anti_you', label: 'Anti-You' },
+  { value: 'war_room', label: 'War Room' },
+  { value: 'behavioral_xray', label: 'X-Ray' },
+];
 
 function RankBadge({ rank }: { rank: number }) {
-  const isTop3 = rank <= 3;
-  return (
-    <div
-      className="w-7 h-7 flex-shrink-0 flex items-center justify-center text-[11px] font-black font-mono"
-      style={{
-        background: isTop3 ? `rgba(232,180,94,${0.15 - (rank - 1) * 0.04})` : 'rgba(255,255,255,0.04)',
-        border: `1px solid ${isTop3 ? `rgba(232,180,94,${0.3 - (rank - 1) * 0.08})` : 'rgba(255,255,255,0.07)'}`,
-        color: isTop3 ? GOLD : 'rgba(255,255,255,0.22)',
-      }}
-    >
-      {rank}
-    </div>
-  );
+  if (rank === 1) return <Crown className="w-5 h-5 text-accent-primary" />;
+  if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />;
+  if (rank === 3) return <Medal className="w-5 h-5 text-amber-700" />;
+  return <span className="w-5 text-center font-mono font-bold text-sm text-text-muted">{rank}</span>;
 }
 
-function Avatar({ name }: { name: string }) {
-  const hue = ((name.charCodeAt(0) ?? 0) * 41 + (name.charCodeAt(1) ?? 0) * 17) % 360;
+export default function LeaderboardPage() {
+  const [tab, setTab] = useState<GameMode | 'global'>('global');
+  const [entries, setEntries] = useState<GlobalLeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const fetch = tab === 'global'
+      ? arenaApi.leaderboard.global(100)
+      : arenaApi.leaderboard.byMode(tab, 100);
+
+    fetch
+      .then(({ entries: data }) => setEntries(data))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [tab]);
+
   return (
-    <div
-      className="w-8 h-8 flex-shrink-0 flex items-center justify-center text-[11px] font-bold font-mono"
-      style={{
-        background: `hsl(${hue},35%,10%)`,
-        border: `1px solid hsl(${hue},35%,20%)`,
-        color: `hsl(${hue},60%,58%)`,
-      }}
-    >
-      {name.slice(0, 2).toUpperCase()}
-    </div>
-  );
-}
-
-export default function Leaderboard() {
-  const [profileAgentId, setProfileAgentId] = useState<string | null>(null);
-  const { data: agents = [], isLoading } = useSWR('/arena/leaderboard', getLeaderboard, {
-    refreshInterval: 10000,
-    revalidateOnFocus: false,
-    dedupingInterval: 5000,
-  });
-
-  const stats = [
-    { label: 'Total Agents', value: agents.length, icon: Users },
-    { label: 'Active Traders', value: agents.filter(a => a.trade_count > 0).length, icon: Target },
-    { label: 'Avg Win Rate', value: agents.length > 0 ? `${Math.round(agents.reduce((sum, a) => sum + (a.win_rate || 0), 0) / agents.length)}%` : '0%', icon: TrendingUp },
-    { label: 'Total Trades', value: agents.reduce((sum, a) => sum + (a.trade_count || 0), 0), icon: Trophy },
-  ];
-
-  if (isLoading && agents.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
-        <div className="flex flex-col items-center gap-5">
-          <div className="w-8 h-8 border-2 rounded-full animate-spin"
-            style={{ borderColor: 'rgba(232,180,94,0.15)', borderTopColor: GOLD }} />
-          <p className="text-[10px] font-mono uppercase tracking-[0.35em] opacity-40" style={{ color: GOLD }}>
-            Loading leaderboard
+    <div className="min-h-screen bg-bg-primary">
+      <div className="container-colosseum py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Trophy className="w-6 h-6 text-accent-primary" />
+            <h1 className="text-2xl font-display font-bold">
+              <GradientText
+                colors={['#E8B45E', '#F5C978', '#D6A04B', '#E8B45E']}
+                animationSpeed={4}
+                className="font-display font-bold"
+              >
+                Leaderboard
+              </GradientText>
+            </h1>
+          </div>
+          <p className="text-text-secondary text-sm">
+            {tab === 'global'
+              ? 'Normalized Arena Rating across all game modes (0-100 scale)'
+              : `Top performers in ${GAME_MODE_LABELS[tab]} mode`
+            }
           </p>
         </div>
-      </div>
-    );
-  }
 
-  return (
-    <>
-    <div className="min-h-screen" style={{ background: BG }}>
+        {/* Tabs */}
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-4 mb-6">
+          {TABS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTab(t.value)}
+              className="flex-shrink-0 text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1.5 transition-all cursor-pointer whitespace-nowrap"
+              style={tab === t.value
+                ? { color: '#E8B45E', background: 'rgba(232,180,94,0.08)', border: '1px solid rgba(232,180,94,0.2)' }
+                : { color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.07)' }
+              }
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      {/* Sticky header */}
-      <div className="sticky top-0 z-30 pt-16 sm:pt-[64px]"
-        style={{ background: BG, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="flex items-center gap-4 px-4 sm:px-6 py-3">
-          <Trophy className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(232,180,94,0.55)' }} />
-          <h1 className="text-base font-black tracking-tight text-white font-mono">LEADERBOARD</h1>
-          <div className="flex items-center gap-1.5 ml-2">
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: YES_C }} />
-            <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>Live</span>
+        {/* Leaderboard */}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-6 h-6 border-2 border-accent-primary/30 border-t-accent-primary rounded-full animate-spin" />
           </div>
-          <span className="ml-auto text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>{agents.length} agents</span>
-        </div>
-
-        {/* Stat strip */}
-        <div className="grid grid-cols-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          {stats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <div key={i} className="flex flex-col items-center py-3 px-2"
-                style={{ borderRight: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                <div className="text-[15px] font-black font-mono tabular-nums" style={{ color: GOLD }}>
-                  {stat.value}
-                </div>
-                <div className="text-[9px] font-mono uppercase tracking-[0.15em] mt-0.5"
-                  style={{ color: 'rgba(255,255,255,0.22)' }}>
-                  {stat.label}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Agent rows */}
-      <div>
-        {agents.length === 0 ? (
-          <div className="py-20 text-center">
-            <Trophy className="w-8 h-8 mx-auto mb-4 opacity-8 text-white" />
-            <p className="text-[13px] font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>No agents yet — be first</p>
+        ) : entries.length === 0 ? (
+          <div className="text-center py-16">
+            <Star className="w-12 h-12 text-text-muted/30 mx-auto mb-4" />
+            <p className="text-text-muted">No rankings yet. Start playing to appear here.</p>
           </div>
         ) : (
-          agents.map((agent, index) => (
-            <div key={agent.agentId} onClick={() => setProfileAgentId(agent.agentId)} className="cursor-pointer">
-              <div
-                className="flex items-center gap-3 px-4 sm:px-6 py-4 group transition-colors"
-                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          <div className="space-y-2">
+            {/* Top 3 podium */}
+            {entries.length >= 3 && (
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+                {[entries[1], entries[0], entries[2]].map((entry, idx) => {
+                  const podiumRank = [2, 1, 3][idx];
+                  const isFirst = podiumRank === 1;
+                  return (
+                    <motion.div
+                      key={entry.user_id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className={`
+                        text-center p-2 sm:p-4 rounded-card border transition-all
+                        ${isFirst
+                          ? 'bg-accent-primary/5 border-accent-primary/20 shadow-glow-gold -mt-4'
+                          : 'bg-card border-border'
+                        }
+                      `}
+                    >
+                      <div className={`
+                        w-10 h-10 sm:w-14 sm:h-14 mx-auto rounded-full flex items-center justify-center text-sm sm:text-lg font-bold mb-2
+                        ${isFirst
+                          ? 'bg-gradient-to-br from-accent-soft to-accent-dark text-black'
+                          : 'bg-white/[0.05] border border-border text-text-secondary'
+                        }
+                      `}>
+                        {entry.display_name?.charAt(0) || '?'}
+                      </div>
+                      <RankBadge rank={podiumRank} />
+                      <div className="text-xs sm:text-sm font-medium text-text-primary mt-1 truncate">
+                        {entry.display_name}
+                      </div>
+                      <div className={`text-sm sm:text-lg font-mono font-bold mt-1 ${isFirst ? 'text-accent-primary' : 'text-text-secondary'}`}>
+                        {Number(entry.score).toFixed(1)}
+                      </div>
+                      <div className="text-[10px] text-text-muted">
+                        {entry.games_played} games
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Rest of the list */}
+            {entries.slice(3).map((entry, i) => (
+              <motion.div
+                key={entry.user_id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 + i * 0.02 }}
+                className="flex items-center gap-4 px-4 py-3 bg-card border border-border rounded-xl hover:border-border-strong transition-all"
               >
-                <RankBadge rank={index + 1} />
-                <Avatar name={agent.agentName || agent.walletAddress} />
+                <RankBadge rank={entry.rank} />
+
+                <div className="w-8 h-8 rounded-full bg-white/[0.05] border border-border flex items-center justify-center text-sm font-bold text-text-secondary">
+                  {entry.display_name?.charAt(0) || '?'}
+                </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-[13px] font-semibold text-white/75 truncate group-hover:text-white/95 transition-colors">
-                      {agent.agentName || `Agent ${agent.walletAddress.slice(0, 8)}`}
-                    </p>
-                    {index === 0 && (
-                      <span className="text-[9px] font-black font-mono px-1.5 py-0.5 flex-shrink-0 tracking-wider"
-                        style={{ color: GOLD, background: 'rgba(232,180,94,0.1)', border: '1px solid rgba(232,180,94,0.25)' }}>
-                        LEADER
-                      </span>
-                    )}
+                  <div className="text-sm font-medium text-text-primary truncate">
+                    {entry.display_name}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 max-w-[100px] overflow-hidden"
-                      style={{ height: 3, background: 'rgba(255,255,255,0.06)' }}>
-                      <div className="h-full transition-all duration-700"
-                        style={{ width: `${Math.min(100, agent.win_rate || 0)}%`, background: 'rgba(232,180,94,0.5)' }} />
-                    </div>
-                    <span className="text-[10px] font-mono" style={{ color: 'rgba(232,180,94,0.55)' }}>
-                      {formatPercent(agent.win_rate)}
+                  <div className="text-[10px] text-text-muted flex items-center gap-2">
+                    <span>{entry.games_played} games</span>
+                    <span className="flex items-center gap-0.5">
+                      <TrendingUp className="w-3 h-3" />
+                      {Number(entry.win_rate).toFixed(0)}% win
                     </span>
                   </div>
                 </div>
 
-                {/* Desktop stats */}
-                <div className="hidden md:flex items-center gap-6">
-                  {[
-                    { label: 'Sortino', val: agent.sortino_ratio?.toFixed(2) || '—', color: undefined },
-                    { label: 'P&L', val: formatCurrency(agent.total_pnl), color: agent.total_pnl >= 0 ? YES_C : NO_C },
-                    { label: 'Trades', val: String(agent.trade_count || 0), color: undefined },
-                  ].map((s) => (
-                    <div key={s.label} className="text-right">
-                      <div className="text-[13px] font-black font-mono"
-                        style={{ color: s.color || 'rgba(255,255,255,0.7)' }}>{s.val}</div>
-                      <div className="text-[9px] font-mono uppercase tracking-[0.15em] mt-0.5"
-                        style={{ color: 'rgba(255,255,255,0.2)' }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Mobile: just P&L */}
-                <div className="md:hidden text-right flex-shrink-0">
-                  <div className="text-[13px] font-black font-mono"
-                    style={{ color: agent.total_pnl >= 0 ? YES_C : NO_C }}>
-                    {formatCurrency(agent.total_pnl)}
+                <div className="text-right">
+                  <div className="font-mono font-bold text-text-primary">
+                    {Number(entry.score).toFixed(1)}
                   </div>
-                  <div className="text-[9px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.2)' }}>P&L</div>
+                  {entry.role === 'partner' && (
+                    <div className="text-[9px] font-mono text-accent-primary uppercase">Partner</div>
+                  )}
                 </div>
-              </div>
-            </div>
-          ))
+              </motion.div>
+            ))}
+          </div>
         )}
       </div>
     </div>
-
-    {profileAgentId && (
-      <AgentProfileModal agentId={profileAgentId} onClose={() => setProfileAgentId(null)} />
-    )}
-  </>
   );
 }

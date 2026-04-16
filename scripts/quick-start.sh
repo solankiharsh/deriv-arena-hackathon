@@ -10,6 +10,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Podman by default; override: CTR=docker ./scripts/quick-start.sh
+CTR="${CTR:-podman}"
+
 # Check prerequisites
 echo "Checking prerequisites..."
 
@@ -25,11 +28,11 @@ if ! command -v node &> /dev/null; then
 fi
 echo -e "${GREEN}✅ Node $(node --version)${NC}"
 
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker not found. Install Colima or Docker Desktop${NC}"
+if ! command -v "$CTR" &> /dev/null; then
+    echo -e "${RED}❌ ${CTR} not found. Install Podman or set CTR=docker${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Docker available${NC}"
+echo -e "${GREEN}✅ ${CTR} available${NC}"
 
 echo ""
 echo "Starting DerivArena..."
@@ -37,10 +40,10 @@ echo ""
 
 # Start PostgreSQL
 echo "1️⃣  Starting PostgreSQL on port 5436..."
-if docker ps -a | grep -q derivarena-postgres; then
-    docker start derivarena-postgres 2>/dev/null || true
+if $CTR ps -a | grep -q derivarena-postgres; then
+    $CTR start derivarena-postgres 2>/dev/null || true
 else
-    docker run -d --name derivarena-postgres \
+    $CTR run -d --name derivarena-postgres \
         -e POSTGRES_USER=derivarena \
         -e POSTGRES_PASSWORD=derivarena \
         -e POSTGRES_DB=derivarena \
@@ -53,9 +56,9 @@ echo -e "${GREEN}✅ PostgreSQL running${NC}"
 # Run migrations
 echo ""
 echo "2️⃣  Running database migrations..."
-docker exec derivarena-postgres psql -U derivarena -d derivarena -c "\dt" > /dev/null 2>&1 && \
+$CTR exec derivarena-postgres psql -U derivarena -d derivarena -c "\dt" > /dev/null 2>&1 && \
     echo -e "${YELLOW}⚠️  Database already migrated${NC}" || \
-    (docker exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql > /dev/null && \
+    ($CTR exec -i derivarena-postgres psql -U derivarena -d derivarena < backend/migrations/010_competitions.up.sql > /dev/null && \
     echo -e "${GREEN}✅ Migrations complete${NC}")
 
 # Install frontend deps
@@ -119,7 +122,7 @@ echo "   curl http://localhost:8090/api/competitions"
 echo ""
 echo "🛑 To stop:"
 echo "   kill $BACKEND_PID $FRONTEND_PID"
-echo "   docker stop derivarena-postgres"
+echo "   $CTR stop derivarena-postgres"
 echo ""
 echo "📝 Logs:"
 echo "   Backend:  tail -f /tmp/derivarena-backend.log"
@@ -128,5 +131,5 @@ echo ""
 echo "Press Ctrl+C to stop all services..."
 
 # Wait for Ctrl+C
-trap "echo ''; echo 'Stopping...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; docker stop derivarena-postgres > /dev/null 2>&1; echo 'Stopped.'; exit" INT
+trap "echo ''; echo 'Stopping...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; $CTR stop derivarena-postgres > /dev/null 2>&1; echo 'Stopped.'; exit" INT
 wait

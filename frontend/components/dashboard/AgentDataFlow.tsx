@@ -5,7 +5,7 @@ const SURF = '#0C1020';
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Pill, Crosshair, Swords, Drama, Rocket, Zap, ChevronDown, ListChecks, MessageSquare, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, Activity, Eye, BarChart3, Users, Flame, Sparkles, Target, Globe } from 'lucide-react';
-import { usePrivy } from '@privy-io/react-auth';
+// usePrivy removed — using arena auth instead
 import { useAuthStore } from '@/store/authStore';
 import { getArenaTasks, getAgentPositions, getAgentConversations } from '@/lib/api';
 import type { AgentTaskType, Position, AgentConversationSummary } from '@/lib/types';
@@ -259,7 +259,9 @@ const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof ListChecks }[] =
 
 export function AgentDataFlow() {
     const { agent } = useAuthStore();
-    const { user, authenticated, login } = usePrivy();
+    const user = null as { twitter?: { profilePictureUrl?: string | null } } | null;
+    const authenticated = true;
+    const login = () => {};
     const rawAvatarUrl = agent?.avatarUrl || user?.twitter?.profilePictureUrl || null;
     const avatarUrl = rawAvatarUrl?.replace('_normal.', '_400x400.') ?? null;
     const containerRef = useRef<HTMLDivElement>(null);
