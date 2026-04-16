@@ -8,6 +8,7 @@ import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target, Star, 
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import ArenaAuthButton from '@/components/auth/ArenaAuthButton';
+import JoinTelegramButton from '@/components/JoinTelegramButton';
 import { useArenaAuth } from '@/store/arenaAuthStore';
 
 function XIcon({ className }: { className?: string }) {
@@ -129,6 +130,9 @@ export default function Navbar() {
               </a>
             </li>
             <li className="relative h-full flex items-center ml-2">
+              <JoinTelegramButton variant="desktop" />
+            </li>
+            <li className="relative h-full flex items-center ml-2">
               <ArenaAuthButton />
             </li>
           </ul>
@@ -209,6 +213,15 @@ export default function Navbar() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2, delay: (navLinks.length + 1) * 0.05 }}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <JoinTelegramButton variant="mobile" />
+                </motion.li>
+                <motion.li
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2, delay: (navLinks.length + 2) * 0.05 }}
                   className="px-4 pt-2"
                 >
                   <ArenaAuthButton />

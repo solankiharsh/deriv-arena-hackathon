@@ -24,6 +24,7 @@ import (
 	"derivarena/internal/derivmiles"
 	"derivarena/internal/marketdata"
 	"derivarena/internal/marketdata/deriv"
+	"derivarena/internal/telegrambot"
 	"derivarena/internal/tradingbot"
 )
 
@@ -167,6 +168,24 @@ func main() {
 	botSvc := tradingbot.NewService(logger.Named("tradingbot"), pool)
 	botSvc.RegisterRoutes(r)
 	log.Infow("AI Auto-Trading Bot Command Center enabled")
+
+	// Telegram broadcast bot (posts to @DerivArenaAsk). Disabled by default;
+	// enable with TELEGRAM_ENABLED=true. Admin endpoints always mount so an
+	// operator can test preview flow via curl.
+	tgCfg := telegrambot.ConfigFromEnv()
+	tgSvc := telegrambot.NewService(logger.Named("telegrambot"), pool, tgCfg)
+	tgSvc.RegisterRoutes(r)
+	tgSvc.Start(ctx)
+	defer tgSvc.Stop(context.Background())
+	if tgCfg.Enabled {
+		log.Infow("Telegram broadcast bot started",
+			"dry_run", tgCfg.DryRun,
+			"chat_id", tgCfg.ChatID,
+			"max_per_hour", tgCfg.MaxPerHour,
+		)
+	} else {
+		log.Infow("Telegram broadcast bot disabled (set TELEGRAM_ENABLED=true)")
+	}
 
 	// Optional: public Deriv market data collector + action bus (set MARKETDATA_ENABLED=1)
 	if os.Getenv("MARKETDATA_ENABLED") == "1" || os.Getenv("MARKETDATA_ENABLED") == "true" {
@@ -770,6 +789,27 @@ CREATE TABLE IF NOT EXISTS bot_signals_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bot_signals_bot_id ON bot_signals_log(bot_id, created_at DESC);
+
+-- Telegram broadcast tables (idempotent)
+CREATE TABLE IF NOT EXISTS telegram_broadcasts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dedupe_key TEXT UNIQUE NOT NULL,
+    kind TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    message_id BIGINT,
+    sent_at TIMESTAMPTZ,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_broadcasts_kind_created ON telegram_broadcasts(kind, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS telegram_broadcast_cursors (
+    pillar TEXT PRIMARY KEY,
+    last_seen_ts TIMESTAMPTZ,
+    last_seen_id TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `
 
 func runMigrations(ctx context.Context, pool *pgxpool.Pool, log *zap.SugaredLogger) error {
