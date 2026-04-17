@@ -290,7 +290,6 @@ Migrations and catalog seed use **`scripts/load-db-env.sh`**: they load the repo
 | `OPENAI_API_KEY` | `frontend/.env.local` | **Trading Copilot** chat streaming |
 | `JWT_SECRET` | `frontend/.env.local` (and root if tooling signs cookies) | Signed session / auth |
 | `DERIV_APP_ID` / tokens | optional until OAuth/live trading | Deriv OAuth flows |
-| `PRIVY_*` | optional | Privy auth when enabled |
 
 ## Testing
 
@@ -320,6 +319,22 @@ cd frontend
 vercel
 ```
 
+### Railway (remove unused Privy variables)
+
+The Go API **does not** read Privy. If `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, or `NEXT_PUBLIC_PRIVY_APP_ID` were ever added to a Railway service, delete them so nothing sensitive lingers in the dashboard.
+
+**Dashboard:** Railway → your project → **Variables** on the relevant service → remove each `PRIVY_*` / `NEXT_PUBLIC_PRIVY_*` key.
+
+**CLI** (after `railway link` and with a token from [railway.com/account/tokens](https://railway.com/account/tokens) exported as `RAILWAY_TOKEN` — not the same name as a random `RAILWAY_API_TOKEN` in a local file):
+
+```bash
+railway variable delete -s <your-go-api-service> PRIVY_APP_ID
+railway variable delete -s <your-go-api-service> PRIVY_APP_SECRET
+railway variable delete -s <your-go-api-service> NEXT_PUBLIC_PRIVY_APP_ID
+```
+
+Repeat for any other service where those keys were copied by mistake. Removing variables triggers a redeploy; that is safe for the Go server.
+
 ## Business Model (From Hackathon Plan)
 
 DerivArena solves 5 validated Deriv business problems:
@@ -345,7 +360,7 @@ Primary references: [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) and
 
 ### Everyone (shared)
 
-- [ ] **Prod smoke test** — `https://deriv-arena-hackathon-beta.vercel.app` loads; sign in with Deriv OAuth; no `login?error=` in the URL after a clean flow.
+- [ ] **Prod smoke test** — canonical frontend loads (e.g. `https://arena.solharsh.com` or your `*.vercel.app` URL); sign in with Deriv OAuth; no `login?error=` in the URL after a clean flow.
 - [ ] **Backend health** — `https://deriv-arena-hackathon-production.up.railway.app/health` returns `"status":"ok"`.
 - [ ] **Deriv stream pill** — bottom-right shows **Deriv Live** (green) when logged in; if amber, re-login and confirm `NEXT_PUBLIC_DERIV_LEGACY_WS_APP_ID` if needed.
 - [ ] **Miles + Marketplace** — `/miles` shows balance; `/marketplace` prices match DB (run `frontend/scripts/seed-marketplace-catalog.mjs` against prod DB if catalog rows are missing).

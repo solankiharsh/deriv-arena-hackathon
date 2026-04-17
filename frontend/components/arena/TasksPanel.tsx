@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useAgentAuth } from '@/hooks/useAgentAuth';
 import { useAuthStore } from '@/store/authStore';
-import PrivySignInButton from '@/components/auth/PrivySignInButton';
 import { getArenaTasks, getTaskStats } from '@/lib/api';
 import type { AgentTaskType, TaskStats } from '@/lib/types';
 
@@ -67,7 +66,6 @@ function TaskDetailModal({
   const { setVisible } = useWalletModal();
   const { isWalletConnected, isSigningIn, signIn } = useAgentAuth();
   const { isAuthenticated } = useAuthStore();
-  const privyEnabled = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const validated = task.completions.filter(c => c.status === 'VALIDATED');
   const statusInfo = STATUS_LABELS[task.status] || STATUS_LABELS.OPEN;
 
@@ -199,7 +197,6 @@ function TaskDetailModal({
                         <Wallet className="w-4 h-4" />
                         Connect Wallet
                       </button>
-                      {privyEnabled && <PrivySignInButton />}
                     </div>
                   </div>
                 ) : (
@@ -226,7 +223,6 @@ function TaskDetailModal({
                           </>
                         )}
                       </button>
-                      {privyEnabled && <PrivySignInButton />}
                     </div>
                   </div>
                 )}

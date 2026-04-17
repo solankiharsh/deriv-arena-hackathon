@@ -37,13 +37,12 @@ All three must succeed. Expected:
 | Variable on Vercel               | Expected                                                  |
 | -------------------------------- | --------------------------------------------------------- |
 | `NEXT_PUBLIC_API_URL`            | `https://deriv-arena-hackathon-production.up.railway.app` |
-| `NEXT_PUBLIC_BASE_URL`           | `https://deriv-arena-hackathon-beta.vercel.app`           |
+| `NEXT_PUBLIC_BASE_URL`           | Your canonical frontend URL (e.g. `https://arena.solharsh.com` or the `*.vercel.app` host) |
 | `NEXT_PUBLIC_DERIV_APP_ID`       | Set (OAuth client id)                                     |
 | `NEXT_PUBLIC_DERIV_LEGACY_WS_APP_ID` | Numeric app id (fallback) — set if yours is alphanumeric  |
 | `DATABASE_URL`                   | Railway Postgres                                          |
 | `JWT_SECRET`                     | Set                                                       |
 | `OPENAI_API_KEY`                 | Set (Copilot)                                             |
-| `PRIVY_APP_ID` / secret          | Set (auth)                                                |
 
 | Variable on Railway (`deriv-arena-hackathon`) | Expected                                                       |
 | --------------------------------------------- | -------------------------------------------------------------- |

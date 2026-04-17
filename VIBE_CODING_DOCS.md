@@ -43,7 +43,7 @@ DerivArena is a gamified trading competition platform that converts demo traders
 | **Backend** | Go 1.21 + Chi router + PostgreSQL (pgx) |
 | **Frontend** | Next.js 16 + React 19 + Tailwind CSS |
 | **Database** | PostgreSQL 16 |
-| **Auth** | Privy + Solana wallet adapters + Deriv OAuth |
+| **Auth** | Solana wallet adapters + Deriv OAuth (arena session) |
 | **Realtime** | SSE streaming + Socket.io |
 | **Charts/3D** | Lightweight Charts, Recharts, Three.js, PixiJS |
 | **Audio** | Howler.js |
@@ -361,7 +361,7 @@ User prompt → AI explores auth flow → Finds no separate signup page
 User prompt → AI checks for infinite loops in Go backend
 → No loops found → Analyzes dev stack resource usage
 → Identifies: Next.js dev server + webpack HMR + large dependency tree
-  (Three.js, PixiJS, Recharts, Solana, Privy) = heavy compilation
+  (Three.js, PixiJS, Recharts, Solana) = heavy compilation
 ```
 
 **Root Cause:** Not a bug — the development environment legitimately consumes significant resources due to the breadth of dependencies being compiled and hot-reloaded simultaneously.
@@ -507,7 +507,7 @@ The AI consistently routed features to the correct stack based on context, preve
 
 4. **Rules of Hooks** — A subtle ordering issue that only manifested at runtime, requiring careful static analysis to identify.
 
-5. **Resource consumption** — A large dependency tree (Three.js, PixiJS, Solana stack, Privy, Recharts) makes the dev server legitimately resource-intensive.
+5. **Resource consumption** — A large dependency tree (Three.js, PixiJS, Solana stack, Recharts) makes the dev server legitimately resource-intensive.
 
 ---
 
