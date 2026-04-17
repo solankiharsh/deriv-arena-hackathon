@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { queryOne, execute } from '@/lib/db/postgres';
 import { createSession } from '@/lib/auth/session';
 import { getPublicOrigin } from '@/lib/auth/public-origin';
+import { awardFirstLogin } from '@/lib/miles/xp';
 import type { ArenaUser } from '@/lib/arena-types';
 
 export async function GET(req: NextRequest) {
@@ -188,6 +189,16 @@ export async function GET(req: NextRequest) {
     dt: accessToken,
     da: demoAccountId || derivAccountId,
   });
+
+  // Grant the one-time welcome bonus so first-time players can afford at
+  // least one Marketplace item immediately after sign-in. Idempotent via
+  // the (source_type, source_id) unique index on miles transactions, so
+  // re-logins do not double-grant.
+  try {
+    await awardFirstLogin(user.id);
+  } catch (err) {
+    console.warn('[auth/callback] awardFirstLogin failed (non-fatal):', err);
+  }
 
   if (needsRole && user.total_games === 0) {
     console.log(`[auth/callback] Redirecting to role selection: user=${user.id}`);

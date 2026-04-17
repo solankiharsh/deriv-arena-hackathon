@@ -36,6 +36,7 @@ const SOURCE_META: Record<
   competition_win: { label: 'Competition wins', icon: <Trophy className="w-4 h-4" /> },
   referral: { label: 'Referrals', icon: <Star className="w-4 h-4" /> },
   manual: { label: 'Manual grants', icon: <Star className="w-4 h-4" /> },
+  first_login: { label: 'Welcome bonus', icon: <Star className="w-4 h-4" /> },
   first_join: { label: 'First competition join', icon: <Star className="w-4 h-4" /> },
   first_game: { label: 'First game played', icon: <Star className="w-4 h-4" /> },
   first_trade: { label: 'First trade placed', icon: <TrendingUp className="w-4 h-4" /> },
@@ -48,6 +49,7 @@ const SOURCE_META: Record<
 // players can see exactly what's earned and what's still unlocked.
 interface StarterQuest {
   type:
+    | 'first_login'
     | 'first_join'
     | 'first_game'
     | 'first_trade'
@@ -60,6 +62,7 @@ interface StarterQuest {
 }
 
 const STARTER_QUESTS: StarterQuest[] = [
+  { type: 'first_login',   title: 'Welcome Bonus',             description: 'Granted automatically on your first sign-in — enough for one Marketplace item', miles: 300 },
   { type: 'first_join',    title: 'Join a Competition',        description: 'Enter any live partner challenge',          miles: 100 },
   { type: 'first_game',    title: 'Play Your First Game',      description: 'Start your first arena session',             miles: 150 },
   { type: 'first_trade',   title: 'Complete Your First Trade', description: 'Place one trade inside a game',              miles: 125 },
@@ -106,6 +109,36 @@ export default function MilesDashboardPage() {
   const [breakdown, setBreakdown] = useState<BreakdownResponse | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [claimingWelcome, setClaimingWelcome] = useState(false);
+  const [welcomeClaimError, setWelcomeClaimError] = useState<string | null>(null);
+
+  const claimWelcomeBonus = useCallback(async () => {
+    setWelcomeClaimError(null);
+    setClaimingWelcome(true);
+    try {
+      const res = await fetch('/api/miles/starter/welcome', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        setWelcomeClaimError('Please sign in again.');
+        return;
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Claim failed: ${res.status}`);
+      }
+      // Refresh breakdown + balance so the "Earned" badge and the total update.
+      await fetchBreakdown();
+      if (userId) await fetchStats(userId);
+    } catch (err) {
+      setWelcomeClaimError((err as Error).message);
+    } finally {
+      setClaimingWelcome(false);
+    }
+    // fetchBreakdown is defined below; declare order is intentional (closure captures).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, fetchStats]);
 
   const fetchBreakdown = useCallback(async () => {
     setBreakdownLoading(true);
@@ -310,6 +343,13 @@ export default function MilesDashboardPage() {
                   const earned = !!breakdown?.by_source.some(
                     (s) => s.source_type === q.type && s.event_count > 0,
                   );
+                  const isWelcome = q.type === 'first_login';
+                  // Show the self-service Claim button only when the welcome bonus
+                  // row exists AND hasn't been awarded yet for this user. New
+                  // sign-ups are awarded automatically by /api/auth/callback, so
+                  // this button is primarily for accounts created before that
+                  // hook existed.
+                  const showClaim = isWelcome && !earned && !!userId;
                   return (
                     <div
                       key={q.type}
@@ -333,6 +373,21 @@ export default function MilesDashboardPage() {
                         <p className="text-[11px] text-text-muted mt-0.5">
                           {q.description}
                         </p>
+                        {showClaim && (
+                          <button
+                            type="button"
+                            onClick={claimWelcomeBonus}
+                            disabled={claimingWelcome}
+                            className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-accent-primary hover:text-accent-primary/80 disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {claimingWelcome ? 'Claiming…' : 'Claim welcome bonus →'}
+                          </button>
+                        )}
+                        {isWelcome && welcomeClaimError && (
+                          <p className="text-[10px] text-red-400 mt-1">
+                            {welcomeClaimError}
+                          </p>
+                        )}
                       </div>
                       <span
                         className={`font-mono text-xs whitespace-nowrap ${

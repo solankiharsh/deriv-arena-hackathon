@@ -40,13 +40,15 @@ interface MarketplaceItem {
 const MARKETPLACE_ITEMS: MarketplaceItem[] = [
   {
     id: 'premium_trading_copilot',
-    catalogId: 'premium_trading_copilot',
     title: 'Trading Copilot',
     description:
-      'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Includes message credits for the access window.',
+      'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Pick the tier that matches how much you want to explore before going deeper.',
     icon: '✨',
     isAvailable: true,
-    miles: 1500,
+    options: [
+      { label: 'Starter · 3 days / 30 credits',  miles: 300,  catalogId: 'copilot_starter' },
+      { label: 'Full Access · 30 days / 600 credits', miles: 1200, catalogId: 'premium_trading_copilot' },
+    ],
   },
   {
     id: 'ai_chart_analyst',
@@ -56,8 +58,8 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
     icon: '🤖',
     isAvailable: true,
     options: [
-      { label: '5 AI Credits', miles: 300, catalogId: 'ai_chart_analyst_5' },
-      { label: '20 AI Credits', miles: 1100, catalogId: 'ai_chart_analyst_20' },
+      { label: '5 AI Credits', miles: 250, catalogId: 'ai_chart_analyst_5' },
+      { label: '20 AI Credits', miles: 900, catalogId: 'ai_chart_analyst_20' },
     ],
   },
   {
@@ -67,7 +69,7 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
       '7 days of curated Forex, Crypto & Indices signals with entry and exit points.',
     icon: '📡',
     isAvailable: true,
-    miles: 700,
+    miles: 500,
   },
   {
     id: 'trading_journal_pro',
@@ -176,7 +178,10 @@ export default function MarketplacePage() {
       setModalOpen(false);
       setPendingItem(null);
       fetchBalance(userId);
-      if (catalogId === 'premium_trading_copilot') {
+      if (
+        catalogId === 'premium_trading_copilot' ||
+        catalogId === 'copilot_starter'
+      ) {
         router.push('/trading-copilot');
       }
     } catch (err) {
