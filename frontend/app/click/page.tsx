@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { parseTrackingCustom1 } from '@/lib/partner-tracking';
@@ -25,25 +25,8 @@ import { parseTrackingCustom1 } from '@/lib/partner-tracking';
  * No credentials, no network calls, no dangerous sinks: this page only
  * reads query params and calls `router.replace()`.
  */
-export default function ClickRedirectPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
-  useEffect(() => {
-    const custom1 = parseTrackingCustom1(searchParams?.get('custom1'));
-    if (custom1) {
-      // ReferralCapture in the root layout will perform the redirect on
-      // the very next render (it watches searchParams). We just wait.
-      return;
-    }
-    // Fallback: no tracking payload. Send the visitor to the arena home
-    // rather than leaving them on a permanently spinning loader.
-    const fallbackTimer = window.setTimeout(() => {
-      router.replace('/arena');
-    }, 400);
-    return () => window.clearTimeout(fallbackTimer);
-  }, [router, searchParams]);
-
+function ClickLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-primary">
       <div className="flex flex-col items-center gap-3 text-text-muted">
@@ -53,5 +36,33 @@ export default function ClickRedirectPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function ClickRedirectInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const custom1 = parseTrackingCustom1(searchParams?.get('custom1'));
+    if (custom1) {
+      // ReferralCapture in the root layout performs the redirect on the
+      // next render; we just wait.
+      return;
+    }
+    const fallbackTimer = window.setTimeout(() => {
+      router.replace('/arena');
+    }, 400);
+    return () => window.clearTimeout(fallbackTimer);
+  }, [router, searchParams]);
+
+  return <ClickLoader />;
+}
+
+export default function ClickRedirectPage() {
+  return (
+    <Suspense fallback={<ClickLoader />}>
+      <ClickRedirectInner />
+    </Suspense>
   );
 }
