@@ -7,7 +7,7 @@ import type { AgentProfile } from '@/lib/types';
 
 /**
  * Bridges arena auth into the legacy `useAuthStore` used by
- * Command Center, Predictions, Map, and Discussions components.
+ * Command Center, Map, and Discussions components.
  *
  * Call once in each wrapper tab component; it writes a synthetic
  * agent profile into useAuthStore so downstream components read

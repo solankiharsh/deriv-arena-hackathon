@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -13,12 +13,17 @@ import ReactFlow, {
   Node,
   Edge,
   NodeProps,
+  NodeMouseHandler,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import type { Bot } from '@/lib/api/trading-bots';
+import { useAuthStore } from '@/store/authStore';
+import { useBotStore } from '@/lib/stores/bot-store';
 import { AgentMapFeed, FeedEntry } from './AgentMapFeed';
+import { BotMapDetailSheet } from './BotMapDetailSheet';
 
 // ─────────────────────────────────────────────
-// Static data
+// Static token backdrop
 // ─────────────────────────────────────────────
 
 const TOKEN_DATA = [
@@ -31,31 +36,23 @@ const TOKEN_DATA = [
   { id: 't-new',      position: { x: 440,  y: 220 }, data: { symbol: '🔥 NEW',    change: +91.0, cap: '45K',  hot: true  } },
 ];
 
-const AGENTS_DEF = [
-  { id: 'alpha',   label: 'α Alpha',   color: '#ff6666', emoji: '🔴', tokenIdx: 0 },
-  { id: 'beta',    label: 'β Beta',    color: '#6699ff', emoji: '🔵', tokenIdx: 1 },
-  { id: 'gamma',   label: 'γ Gamma',   color: '#66ff88', emoji: '🟢', tokenIdx: 2 },
-  { id: 'delta',   label: 'δ Delta',   color: '#ffdd44', emoji: '🟡', tokenIdx: 3 },
-  { id: 'epsilon', label: 'ε Epsilon', color: '#cc88ff', emoji: '🟣', tokenIdx: 4 },
-];
+const BOT_PALETTE = ['#ff6666', '#6699ff', '#66ff88', '#ffdd44', '#cc88ff', '#E8B45E'];
+const BOT_EMOJI = ['🤖', '⚡', '🎯', '📈', '🔷', '💠'];
 
-const SENTIMENTS = ['BULLISH 🚀', 'BEARISH 📉', 'ANALYZING...'];
-const EDGE_LABELS = ['watching', 'LONG 0.5 SOL', 'LONG 1.2 SOL', 'ANALYZING', 'watching'];
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  }
+  return Math.abs(h);
+}
 
 function now(): string {
   return new Date().toLocaleTimeString('en-US', { hour12: false });
 }
 
-function randomInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function randomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 // ─────────────────────────────────────────────
-// Custom node: Token
+// Token node (unchanged visuals)
 // ─────────────────────────────────────────────
 
 interface TokenNodeData {
@@ -74,7 +71,6 @@ const TokenNode = memo(({ data }: NodeProps<TokenNodeData>) => {
 
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
-      {/* Pulsing ring for hot tokens */}
       {(data.hot || data.godWallet) && (
         <div
           style={{
@@ -89,7 +85,6 @@ const TokenNode = memo(({ data }: NodeProps<TokenNodeData>) => {
         />
       )}
 
-      {/* Main circle */}
       <div
         style={{
           width: size,
@@ -149,7 +144,6 @@ const TokenNode = memo(({ data }: NodeProps<TokenNodeData>) => {
         </div>
       </div>
 
-      {/* ReactFlow handles (invisible) */}
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
@@ -158,54 +152,35 @@ const TokenNode = memo(({ data }: NodeProps<TokenNodeData>) => {
 TokenNode.displayName = 'TokenNode';
 
 // ─────────────────────────────────────────────
-// Custom node: Agent
+// Trading bot node (real bots)
 // ─────────────────────────────────────────────
 
-interface AgentNodeData {
-  label: string;
+interface TradingBotNodeData {
+  botId: string;
+  name: string;
   color: string;
   emoji: string;
-  sentiment: string;
-  arriving?: boolean;
+  statusLabel: string;
 }
 
-const AgentNode = memo(({ data }: NodeProps<AgentNodeData>) => {
-  const sentimentColor =
-    data.sentiment.includes('BULLISH') ? '#4ade80'
-    : data.sentiment.includes('BEARISH') ? '#f87171'
-    : '#6b7280';
+const TradingBotNode = memo(({ data }: NodeProps<TradingBotNodeData>) => {
+  const short =
+    data.name.length > 14 ? `${data.name.slice(0, 12)}…` : data.name;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-      {/* Arrival badge */}
-      {data.arriving && (
-        <div
-          style={{
-            position: 'absolute',
-            top: -28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(5,5,5,0.95)',
-            border: `1px solid ${sentimentColor}`,
-            borderRadius: 4,
-            padding: '2px 6px',
-            fontSize: 9,
-            fontFamily: 'JetBrains Mono, monospace',
-            color: sentimentColor,
-            whiteSpace: 'nowrap',
-            boxShadow: `0 0 8px ${sentimentColor}44`,
-            zIndex: 100,
-          }}
-        >
-          {data.sentiment}
-        </div>
-      )}
-
-      {/* Main circle */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
+        cursor: 'pointer',
+      }}
+    >
       <div
         style={{
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           borderRadius: '50%',
           background: `radial-gradient(circle, ${data.color}33 0%, rgba(5,5,5,0.9) 70%)`,
           border: `2px solid ${data.color}`,
@@ -213,15 +188,11 @@ const AgentNode = memo(({ data }: NodeProps<AgentNodeData>) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 18,
-          cursor: 'default',
-          transition: 'box-shadow 0.3s ease',
+          fontSize: 20,
         }}
       >
         {data.emoji}
       </div>
-
-      {/* Label */}
       <div
         style={{
           fontSize: 9,
@@ -229,23 +200,22 @@ const AgentNode = memo(({ data }: NodeProps<AgentNodeData>) => {
           color: data.color,
           fontWeight: 700,
           textShadow: `0 0 6px ${data.color}88`,
-          lineHeight: 1,
+          lineHeight: 1.1,
+          maxWidth: 96,
+          textAlign: 'center',
         }}
       >
-        {data.label}
+        {short}
       </div>
-
-      {/* Sentiment badge */}
       <div
         style={{
           fontSize: 8,
           fontFamily: 'JetBrains Mono, monospace',
-          color: sentimentColor,
+          color: '#9ca3af',
           lineHeight: 1,
-          opacity: 0.8,
         }}
       >
-        {data.sentiment}
+        {data.statusLabel}
       </div>
 
       <Handle type="source" position={Position.Top} style={{ opacity: 0 }} />
@@ -253,266 +223,128 @@ const AgentNode = memo(({ data }: NodeProps<AgentNodeData>) => {
     </div>
   );
 });
-AgentNode.displayName = 'AgentNode';
-
-// ─────────────────────────────────────────────
-// Node types registration
-// ─────────────────────────────────────────────
+TradingBotNode.displayName = 'TradingBotNode';
 
 const nodeTypes: NodeTypes = {
   tokenNode: TokenNode as unknown as NodeTypes[string],
-  agentNode: AgentNode as unknown as NodeTypes[string],
+  tradingBotNode: TradingBotNode as unknown as NodeTypes[string],
 };
 
-// ─────────────────────────────────────────────
-// Build initial nodes/edges
-// ─────────────────────────────────────────────
+const TOKEN_NODES: Node[] = TOKEN_DATA.map((t) => ({
+  id: t.id,
+  type: 'tokenNode',
+  position: t.position,
+  data: t.data,
+  draggable: false,
+  selectable: false,
+}));
 
-function buildInitialNodes(): Node[] {
-  const tokenNodes: Node[] = TOKEN_DATA.map((t) => ({
-    id: t.id,
-    type: 'tokenNode',
-    position: t.position,
-    data: t.data,
-    draggable: false,
-    selectable: false,
-  }));
+function buildBotNodes(bots: Bot[]): Node[] {
+  return bots.map((bot, index) => {
+    const tokenIdx = hashString(bot.id) % TOKEN_DATA.length;
+    const token = TOKEN_DATA[tokenIdx];
+    const offsetX = (hashString(`${bot.id}a`) % 100) - 50;
+    const offsetY = -58 + (hashString(`${bot.id}b`) % 40) - 20 + (index % 3) * 6;
+    const color = BOT_PALETTE[hashString(bot.id) % BOT_PALETTE.length];
+    const emoji = BOT_EMOJI[hashString(bot.id) % BOT_EMOJI.length];
+    const statusLabel =
+      bot.status === 'running'
+        ? 'Running'
+        : bot.status === 'paused'
+          ? 'Paused'
+          : bot.status === 'error'
+            ? 'Error'
+            : 'Stopped';
 
-  const agentNodes: Node[] = AGENTS_DEF.map((a, i) => {
-    const token = TOKEN_DATA[a.tokenIdx];
-    const offsetX = (i % 2 === 0 ? 1 : -1) * 30;
-    const offsetY = -60;
     return {
-      id: `agent-${a.id}`,
-      type: 'agentNode',
+      id: `bot-${bot.id}`,
+      type: 'tradingBotNode',
       position: { x: token.position.x + offsetX, y: token.position.y + offsetY },
       data: {
-        label: a.label,
-        color: a.color,
-        emoji: a.emoji,
-        sentiment: 'ANALYZING...',
-        arriving: false,
+        botId: bot.id,
+        name: bot.name,
+        color,
+        emoji,
+        statusLabel,
       },
       draggable: false,
-      selectable: false,
+      selectable: true,
       zIndex: 10,
     };
   });
-
-  return [...tokenNodes, ...agentNodes];
 }
 
-function buildInitialEdges(): Edge[] {
-  return AGENTS_DEF.map((a, i) => ({
-    id: `edge-${a.id}`,
-    source: `agent-${a.id}`,
-    target: TOKEN_DATA[a.tokenIdx].id,
-    animated: true,
-    style: { stroke: a.color, strokeWidth: 1.5, strokeDasharray: '5 3' },
-    label: EDGE_LABELS[i % EDGE_LABELS.length],
-    labelStyle: { fill: a.color, fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
-    labelBgStyle: { fill: 'rgba(5,5,5,0.8)', fillOpacity: 1 },
-    type: 'default',
-  }));
+function buildBotEdges(bots: Bot[]): Edge[] {
+  return bots.map((bot) => {
+    const tokenIdx = hashString(bot.id) % TOKEN_DATA.length;
+    const token = TOKEN_DATA[tokenIdx];
+    const color = BOT_PALETTE[hashString(bot.id) % BOT_PALETTE.length];
+    return {
+      id: `edge-bot-${bot.id}`,
+      source: `bot-${bot.id}`,
+      target: token.id,
+      animated: bot.status === 'running',
+      style: { stroke: color, strokeWidth: 1.5, strokeDasharray: '5 3' },
+      label: bot.status === 'running' ? 'active' : 'linked',
+      labelStyle: { fill: color, fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
+      labelBgStyle: { fill: 'rgba(5,5,5,0.8)', fillOpacity: 1 },
+      type: 'default',
+    };
+  });
 }
-
-// ─────────────────────────────────────────────
-// Inner map component (must be inside ReactFlowProvider)
-// ─────────────────────────────────────────────
 
 function AgentMapInner() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(buildInitialNodes());
-  const [edges, setEdges, onEdgesChange] = useEdgesState(buildInitialEdges());
+  const { agent } = useAuthStore();
+  const userId = agent?.id || 'local-dev-user';
+  const { bots: botsRaw, fetchBots } = useBotStore();
+  const bots = Array.isArray(botsRaw) ? botsRaw : [];
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [feedEntries, setFeedEntries] = useState<FeedEntry[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
 
-  // Track which token each agent is currently at
-  const agentTargets = useRef<Record<string, string>>(
-    Object.fromEntries(AGENTS_DEF.map((a) => [`agent-${a.id}`, TOKEN_DATA[a.tokenIdx].id]))
-  );
+  useEffect(() => {
+    fetchBots(userId);
+  }, [fetchBots, userId]);
 
-  const addFeedEntry = useCallback((text: string, color: FeedEntry['color']) => {
+  useEffect(() => {
+    setNodes([...TOKEN_NODES, ...buildBotNodes(bots)]);
+    setEdges(buildBotEdges(bots));
+  }, [bots, setNodes, setEdges]);
+
+  useEffect(() => {
+    if (bots.length === 0) return;
     setFeedEntries((prev) => {
       const entry: FeedEntry = {
-        id: `${Date.now()}-${Math.random()}`,
-        text,
-        color,
+        id: `map-bots-${bots.length}`,
+        text: `🗺 ${bots.length} bot${bots.length === 1 ? '' : 's'} on map — click a node for P&L`,
+        color: 'gold',
         timestamp: now(),
       };
+      if (prev.some((p) => p.id === entry.id)) return prev;
       return [entry, ...prev].slice(0, 40);
     });
+  }, [bots.length]);
+
+  const onNodeClick: NodeMouseHandler = useCallback((_e, node) => {
+    if (node.type === 'tradingBotNode' && node.data && typeof (node.data as TradingBotNodeData).botId === 'string') {
+      setSelectedBotId((node.data as TradingBotNodeData).botId);
+    }
   }, []);
 
-  // Move an agent to a token
-  const moveAgentToToken = useCallback(
-    (agentId: string, tokenId: string, sentiment: string, label: string) => {
-      const agentDef = AGENTS_DEF.find((a) => `agent-${a.id}` === agentId)!;
-      const token = TOKEN_DATA.find((t) => t.id === tokenId)!;
-      const offsetX = Math.random() * 60 - 30;
-      const offsetY = -65 + Math.random() * 20 - 10;
-
-      agentTargets.current[agentId] = tokenId;
-
-      // Update node position + mark as arriving
-      setNodes((prev) =>
-        prev.map((n) => {
-          if (n.id === agentId) {
-            return {
-              ...n,
-              position: { x: token.position.x + offsetX, y: token.position.y + offsetY },
-              data: { ...n.data, sentiment, arriving: true },
-            };
-          }
-          return n;
-        })
-      );
-
-      // Update edge
-      setEdges((prev) =>
-        prev.map((e) => {
-          if (e.id === `edge-${agentDef.id}`) {
-            return {
-              ...e,
-              source: agentId,
-              target: tokenId,
-              label,
-              style: { stroke: agentDef.color, strokeWidth: 1.5, strokeDasharray: '5 3' },
-              labelStyle: { fill: agentDef.color, fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
-            };
-          }
-          return e;
-        })
-      );
-
-      // Feed entry
-      const sentimentColor: FeedEntry['color'] =
-        sentiment.includes('BULLISH') ? 'green' : sentiment.includes('BEARISH') ? 'red' : 'dim';
-      addFeedEntry(
-        `${agentDef.emoji} ${agentDef.label.split(' ')[1]} → ${token.data.symbol} — ${sentiment}`,
-        sentimentColor
-      );
-
-      // Paper trade event (sometimes)
-      if (sentiment.includes('BULLISH') && Math.random() < 0.4) {
-        setTimeout(() => {
-          const sol = (Math.random() * 1.5 + 0.3).toFixed(1);
-          addFeedEntry(
-            `📊 Paper trade: ${agentDef.label.split(' ')[1]} LONG ${token.data.symbol} ${sol} SOL`,
-            'gold'
-          );
-        }, 800);
-      }
-
-      // Clear arriving badge after 3s
-      setTimeout(() => {
-        setNodes((prev) =>
-          prev.map((n) =>
-            n.id === agentId ? { ...n, data: { ...n.data, arriving: false } } : n
-          )
-        );
-      }, 3000);
-    },
-    [setNodes, setEdges, addFeedEntry]
+  const selectedBot = useMemo(
+    () => (selectedBotId ? bots.find((b) => b.id === selectedBotId) ?? null : null),
+    [bots, selectedBotId]
   );
 
-  // God wallet event
-  const triggerGodWallet = useCallback(() => {
-    const token = randomItem(TOKEN_DATA);
-    addFeedEntry(`⚡ God Wallet Buy detected — ${token.data.symbol}`, 'gold');
-
-    // Flash token gold
-    setNodes((prev) =>
-      prev.map((n) =>
-        n.id === token.id ? { ...n, data: { ...n.data, godWallet: true } } : n
-      )
-    );
-
-    // Move all agents toward the token with staggered delay
-    AGENTS_DEF.forEach((a, i) => {
-      setTimeout(() => {
-        const conf = randomInt(65, 95);
-        moveAgentToToken(
-          `agent-${a.id}`,
-          token.id,
-          `BULLISH 🚀 conf ${conf}%`,
-          'LONG 0.5 SOL'
-        );
-      }, i * 400);
-    });
-
-    // Clear gold flash after 2s
-    setTimeout(() => {
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === token.id ? { ...n, data: { ...n.data, godWallet: false } } : n
-        )
-      );
-    }, 2000);
-  }, [addFeedEntry, setNodes, moveAgentToToken]);
-
-  // Regular agent movement every 6-8s
-  useEffect(() => {
-    let moveTimer: ReturnType<typeof setTimeout>;
-
-    function scheduleNextMove() {
-      const delay = randomInt(6000, 8000);
-      moveTimer = setTimeout(() => {
-        const agentDef = randomItem(AGENTS_DEF);
-        const agentId = `agent-${agentDef.id}`;
-        const currentToken = agentTargets.current[agentId];
-
-        // Pick a different token
-        const candidates = TOKEN_DATA.filter((t) => t.id !== currentToken);
-        const targetToken = randomItem(candidates);
-
-        const sentimentRoll = Math.random();
-        const sentiment =
-          sentimentRoll < 0.45
-            ? `BULLISH 🚀 conf ${randomInt(60, 90)}%`
-            : sentimentRoll < 0.75
-            ? `BEARISH 📉 conf ${randomInt(52, 75)}%`
-            : 'ANALYZING...';
-
-        const label = randomItem(EDGE_LABELS);
-        moveAgentToToken(agentId, targetToken.id, sentiment, label);
-
-        scheduleNextMove();
-      }, delay);
-    }
-
-    scheduleNextMove();
-    return () => clearTimeout(moveTimer);
-  }, [moveAgentToToken]);
-
-  // God wallet events every 25-35s
-  useEffect(() => {
-    let godTimer: ReturnType<typeof setTimeout>;
-
-    function scheduleGod() {
-      const delay = randomInt(25000, 35000);
-      godTimer = setTimeout(() => {
-        triggerGodWallet();
-        scheduleGod();
-      }, delay);
-    }
-
-    // First god wallet after 10s for demo feel
-    const firstTimer = setTimeout(() => {
-      scheduleGod();
-    }, 10000);
-
-    return () => {
-      clearTimeout(firstTimer);
-      clearTimeout(godTimer);
-    };
-  }, [triggerGodWallet]);
-
-  // Subtle idle drift — shift agent positions slightly every 3s
+  // Subtle drift for bot nodes only
   useEffect(() => {
     const interval = setInterval(() => {
       setNodes((prev) =>
         prev.map((n) => {
-          if (!n.id.startsWith('agent-')) return n;
-          const drift = () => (Math.random() - 0.5) * 4;
+          if (!n.id.startsWith('bot-')) return n;
+          const drift = () => (Math.random() - 0.5) * 3;
           return {
             ...n,
             position: {
@@ -522,15 +354,24 @@ function AgentMapInner() {
           };
         })
       );
-    }, 3000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [setNodes]);
 
   return (
     <div className="flex h-full w-full" style={{ background: '#050505' }}>
-      {/* Canvas area */}
       <div className="flex-1 relative" style={{ minWidth: 0 }}>
-        {/* CRT scanline overlay */}
+        {bots.length === 0 && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+            style={{ background: 'rgba(5,5,5,0.45)' }}
+          >
+            <p className="text-[11px] font-mono text-white/45 text-center px-6 max-w-sm">
+              No trading bots yet. Create one in the Command tab — it will appear here.
+            </p>
+          </div>
+        )}
+
         <div
           style={{
             position: 'absolute',
@@ -542,7 +383,6 @@ function AgentMapInner() {
           }}
         />
 
-        {/* Pulse keyframe injected via style tag */}
         <style>{`
           @keyframes token-pulse {
             0%, 100% { transform: scale(1); opacity: 0.5; }
@@ -558,15 +398,16 @@ function AgentMapInner() {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ padding: 0.15 }}
           panOnScroll={false}
           zoomOnScroll={false}
-          panOnDrag={false}
+          panOnDrag
           nodesDraggable={false}
           nodesConnectable={false}
-          elementsSelectable={false}
+          elementsSelectable
           proOptions={{ hideAttribution: true }}
           style={{ background: '#050505' }}
         >
@@ -579,20 +420,24 @@ function AgentMapInner() {
         </ReactFlow>
       </div>
 
-      {/* Live feed sidebar */}
       <div
-        className="flex-shrink-0 border-l h-full overflow-hidden"
+        className="flex-shrink-0 border-l h-full overflow-hidden w-[min(100%,280px)]"
         style={{ borderColor: 'rgba(232,180,94,0.15)' }}
       >
         <AgentMapFeed entries={feedEntries} />
       </div>
+
+      <BotMapDetailSheet
+        open={Boolean(selectedBot)}
+        onOpenChange={(o) => {
+          if (!o) setSelectedBotId(null);
+        }}
+        bot={selectedBot}
+        userId={userId}
+      />
     </div>
   );
 }
-
-// ─────────────────────────────────────────────
-// Exported wrapper with ReactFlowProvider
-// ─────────────────────────────────────────────
 
 export function AgentMap() {
   return (

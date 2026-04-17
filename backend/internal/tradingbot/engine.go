@@ -339,6 +339,7 @@ func (e *BotEngine) executeTrade(ctx context.Context, bot *Bot, decision *TradeD
 	exitDec := decimal.NewFromFloat(exit)
 	payout := stake.Add(pnl)
 
+	now := time.Now()
 	trade := &BotTrade{
 		BotID:         bot.ID,
 		Symbol:        decision.Symbol,
@@ -351,7 +352,8 @@ func (e *BotEngine) executeTrade(ctx context.Context, bot *Bot, decision *TradeD
 		ExitPrice:     &exitDec,
 		ExecutionMode: bot.ExecutionMode,
 		SignalSources: decision.SignalSources,
-		ExecutedAt:    time.Now(),
+		ExecutedAt:    now,
+		ClosedAt:      &now, // instant fill — same as execution so APIs/clients see a closed trade
 		Metadata:      map[string]any{"confidence": decision.Confidence},
 	}
 

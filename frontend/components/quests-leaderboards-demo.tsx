@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Trophy, Bot, Users, Play, Target, Swords, Share2, UserPlus, type LucideIcon } from 'lucide-react';
+import { ARENA_QUESTS, type ArenaQuestId } from '@/lib/arena-quest-definitions';
 
 interface QuestsLeaderboardsDemoProps {
   className?: string;
@@ -275,15 +276,23 @@ const AVATAR_COLORS = [
   'border-cyan-400/30 text-cyan-400/70',
 ];
 
-const REAL_QUESTS: QuestCardData[] = [
-  { icon: Users, title: 'Join a Competition', shortTitle: 'Join', points: 100, desc: 'Enter any live partner challenge' },
-  { icon: Play, title: 'Play Your First Game', shortTitle: 'First Game', points: 150, desc: 'Start your first arena session' },
-  { icon: Target, title: 'Complete Your First Trade', shortTitle: 'First Trade', points: 125, desc: 'Place one trade inside a game' },
-  { icon: Trophy, title: 'Finish a Match', shortTitle: 'Finish', points: 175, desc: 'Stay in until the results screen' },
-  { icon: Swords, title: 'Win Streak', shortTitle: 'Streak', points: 200, desc: 'Chain back-to-back wins in the arena' },
-  { icon: Share2, title: 'Share Your Game Link', shortTitle: 'Share', points: 100, desc: 'Send your partner game URL to players' },
-  { icon: UserPlus, title: 'Get a Referral Join', shortTitle: 'Referral', points: 250, desc: 'Bring in one player through your share link' },
-];
+const QUEST_ICONS: Record<ArenaQuestId, LucideIcon> = {
+  join_competition: Users,
+  first_game: Play,
+  first_trade: Target,
+  finish_match: Trophy,
+  win_streak: Swords,
+  share_link: Share2,
+  referral: UserPlus,
+};
+
+const REAL_QUESTS: QuestCardData[] = ARENA_QUESTS.map((q) => ({
+  icon: QUEST_ICONS[q.id],
+  title: q.title,
+  shortTitle: q.shortTitle,
+  points: q.points,
+  desc: q.desc,
+}));
 
 // Slot machine row for climbing animation
 function ClimbRow({ entry, isClimbing, itemHeight }: { entry: ClimbEntry; isClimbing: boolean; itemHeight: number }): ReactNode {
