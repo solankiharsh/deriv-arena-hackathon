@@ -127,7 +127,7 @@ func validateConfig(cfg *BotConfig) error {
 		return fmt.Errorf("invalid riskProfile")
 	}
 
-	// Markets
+	// Markets (volatility / synthetic indices)
 	allowedMarkets := map[string]bool{
 		"VOL100-USD": true, "VOL75-USD": true, "VOL50-USD": true, "VOL25-USD": true,
 		"VOL10-USD": true, "BOOM1000-USD": true, "CRASH1000-USD": true,
@@ -139,7 +139,22 @@ func validateConfig(cfg *BotConfig) error {
 		}
 	}
 	cfg.MarketSelection = cleaned
-	if len(cfg.MarketSelection) == 0 {
+
+	// Assets (rise/fall, FX, crypto synthetics)
+	allowedAssets := map[string]bool{
+		"R_10": true, "R_25": true, "R_50": true, "R_75": true, "R_100": true,
+		"frxEURUSD": true, "frxGBPUSD": true, "frxUSDJPY": true,
+		"cryBTCUSD": true, "cryETHUSD": true,
+	}
+	cleanedA := cfg.AssetSelection[:0]
+	for _, a := range cfg.AssetSelection {
+		if allowedAssets[a] {
+			cleanedA = append(cleanedA, a)
+		}
+	}
+	cfg.AssetSelection = cleanedA
+
+	if len(TradingSymbols(*cfg)) == 0 {
 		cfg.MarketSelection = []string{"VOL100-USD"}
 	}
 
@@ -528,11 +543,11 @@ func (s *Service) handleFeedData(w http.ResponseWriter, r *http.Request) {
 	feed := s.engine.GetMarketFeed()
 	switch feedID {
 	case "deriv_ticks":
-		ticks := make([]MarketTick, 0, len(bot.Config.MarketSelection))
-		symbols := bot.Config.MarketSelection
+		symbols := TradingSymbols(bot.Config)
 		if len(symbols) == 0 {
 			symbols = []string{"VOL100-USD", "VOL75-USD", "VOL50-USD"}
 		}
+		ticks := make([]MarketTick, 0, len(symbols))
 		for _, sym := range symbols {
 			ticks = append(ticks, feed.GetLatestTick(sym))
 		}
@@ -543,9 +558,10 @@ func (s *Service) handleFeedData(w http.ResponseWriter, r *http.Request) {
 		sent := s.engine.news.GetLatestSentiment(ctx, bot.Config.NewsFilters)
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": sent})
 	case "pattern":
+		syms := TradingSymbols(bot.Config)
 		sym := "VOL100-USD"
-		if len(bot.Config.MarketSelection) > 0 {
-			sym = bot.Config.MarketSelection[0]
+		if len(syms) > 0 {
+			sym = syms[0]
 		}
 		candles := feed.GetCandles(sym, 60)
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)

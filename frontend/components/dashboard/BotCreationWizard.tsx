@@ -6,15 +6,137 @@ import {
   defaultBotAgentPolicy,
   type AutoStopMode,
   type BotAgentPolicy,
+  type PersonalityArchetype,
+  type DecisionStyle,
   type TradingInstinct,
   type TimePatience,
   type ProfitDream,
   type MoneyApproach,
   type ProtectionMindset,
+  type MarketSense,
   type AssetLove,
 } from '@/lib/botAgentPolicy';
 
 const GOLD = '#E8B45E';
+
+/** Canonical Deriv-style asset tickers (mirrors backend allowlist). */
+const ASSET_TICKER_OPTIONS = [
+  'R_10',
+  'R_25',
+  'R_50',
+  'R_75',
+  'R_100',
+  'frxEURUSD',
+  'frxGBPUSD',
+  'frxUSDJPY',
+  'cryBTCUSD',
+  'cryETHUSD',
+] as const;
+
+const MARKET_OPTIONS = ['VOL100-USD', 'VOL75-USD', 'VOL50-USD', 'VOL25-USD'] as const;
+
+const BOT_NAME_ADJECTIVES = [
+  'Swift',
+  'Nova',
+  'Quantum',
+  'Apex',
+  'Velvet',
+  'Iron',
+  'Neon',
+  'Solar',
+] as const;
+
+function randomUint32(): number {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return buf[0] ?? 0;
+}
+
+function randomInt(n: number): number {
+  if (n <= 0) return 0;
+  return randomUint32() % n;
+}
+
+function pickOne<T>(arr: readonly T[]): T {
+  return arr[randomInt(arr.length)] as T;
+}
+
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    const t = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = t;
+  }
+  return arr;
+}
+
+function pickNonEmptySubset<T>(arr: readonly T[]): T[] {
+  const copy = [...arr];
+  shuffleInPlace(copy);
+  const k = 1 + randomInt(arr.length);
+  return copy.slice(0, k);
+}
+
+function randomBotName(): string {
+  return `Bot-${pickOne(BOT_NAME_ADJECTIVES)}-${1000 + randomInt(9000)}`;
+}
+
+function randomAgentPolicy(): BotAgentPolicy {
+  const personalities: PersonalityArchetype[] = ['careful_guardian', 'balanced_trader', 'bold_adventurer'];
+  const decisionStyles: DecisionStyle[] = ['gut_instinct', 'deep_analyst', 'patient_observer'];
+  const instincts: TradingInstinct[] = ['trend_chaser', 'value_hunter', 'reversal_spotter', 'speed_demon'];
+  const patience: TimePatience[] = ['lightning_day', 'swing_rider', 'long_term_visionary'];
+  const profitDreams: ProfitDream[] = ['quick_wins', 'big_moves', 'wealth_builder'];
+  const money: MoneyApproach[] = ['fixed_safe', 'smart_scaling', 'aggressive_sizer'];
+  const protection: ProtectionMindset[] = ['tight_guardian', 'flexible', 'hands_off'];
+  const marketSense: MarketSense[] = ['fixed_rules', 'mood_reader'];
+  const assetLove: AssetLove[] = ['stocks_fan', 'forex_pro', 'crypto_rebel', 'all_rounder'];
+
+  const notesPool = ['Scout mode', 'News-aware', 'Tight session', 'Wide hunt', ''];
+  const symPool = ['', ...ASSET_TICKER_OPTIONS, ...MARKET_OPTIONS];
+
+  return {
+    identity: {
+      displayName: '',
+      personality: pickOne(personalities),
+      decisionStyle: pickOne(decisionStyles),
+    },
+    tradingStyle: {
+      instinct: pickOne(instincts),
+      patience: pickOne(patience),
+      profitDream: pickOne(profitDreams),
+    },
+    risk: {
+      moneyApproach: pickOne(money),
+      protection: pickOne(protection),
+    },
+    preferences: {
+      marketSense: pickOne(marketSense),
+      assetLove: pickOne(assetLove),
+      primarySymbol: pickOne(symPool),
+      strategyNotes: pickOne(notesPool),
+    },
+    deployment: {
+      paperStartingCash: 1000 + randomInt(99_000),
+      deploymentAcknowledged: true,
+    },
+  };
+}
+
+function randomMarketsAndAssets(): { market_selection: string[]; asset_selection: string[] } {
+  const roll = randomInt(3);
+  if (roll === 0) {
+    return { market_selection: pickNonEmptySubset(MARKET_OPTIONS), asset_selection: [] };
+  }
+  if (roll === 1) {
+    return { market_selection: [], asset_selection: pickNonEmptySubset(ASSET_TICKER_OPTIONS) };
+  }
+  return {
+    market_selection: pickNonEmptySubset(MARKET_OPTIONS),
+    asset_selection: pickNonEmptySubset(ASSET_TICKER_OPTIONS),
+  };
+}
 
 interface Props {
   onSubmit: (payload: { name: string; execution_mode: string; config: BotConfig }) => Promise<void>;
@@ -65,6 +187,21 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: 'asset_selection', section: 'Assets', question: 'Which assets should your bot trade?',
+    type: 'checkbox', options: [
+      { value: 'R_10', label: 'Rise/Fall 10' },
+      { value: 'R_25', label: 'Rise/Fall 25' },
+      { value: 'R_50', label: 'Rise/Fall 50' },
+      { value: 'R_75', label: 'Rise/Fall 75' },
+      { value: 'R_100', label: 'Rise/Fall 100' },
+      { value: 'frxEURUSD', label: 'EUR/USD' },
+      { value: 'frxGBPUSD', label: 'GBP/USD' },
+      { value: 'frxUSDJPY', label: 'USD/JPY' },
+      { value: 'cryBTCUSD', label: 'BTC/USD' },
+      { value: 'cryETHUSD', label: 'ETH/USD' },
+    ],
+  },
+  {
     id: 'contract_types', section: 'Contracts', question: 'Which contract types may your bot use?',
     type: 'checkbox', options: [
       { value: 'CALL', label: 'Call / Put', desc: 'Classic rise/fall' },
@@ -107,6 +244,7 @@ const SECTIONS = [
   'Risk & Execution',
   'Agent Policy',
   'Markets',
+  'Assets',
   'Contracts',
   'Signal Sources',
   'Execution Parameters',
@@ -121,6 +259,7 @@ export function BotCreationWizard({ onSubmit, onCancel }: Props) {
     execution_mode: 'paper',
     risk_profile: 'moderate',
     market_selection: ['VOL100-USD'],
+    asset_selection: [] as string[],
     contract_types: ['CALL', 'PUT'],
     technical_indicators: ['rsi'],
     ai_patterns: false,
@@ -146,14 +285,46 @@ export function BotCreationWizard({ onSubmit, onCancel }: Props) {
     });
   };
 
+  const randomizeAll = () => {
+    setError(null);
+    const { market_selection, asset_selection } = randomMarketsAndAssets();
+    const ma = randomAgentPolicy();
+    const execModes = ['paper', 'demo_live'] as const;
+    const risks = ['conservative', 'moderate', 'aggressive'] as const;
+    const stopModes: AutoStopMode[] = ['first_hit', 'target_only', 'risk_only'];
+    const contractOpts = ['CALL', 'PUT', 'ACCU', 'MULTUP'] as const;
+    const indOpts = ['rsi', 'macd', 'bollinger'] as const;
+
+    setForm({
+      name: randomBotName(),
+      execution_mode: pickOne(execModes),
+      risk_profile: pickOne(risks),
+      market_selection,
+      asset_selection,
+      contract_types: pickNonEmptySubset(contractOpts),
+      technical_indicators: pickNonEmptySubset(indOpts),
+      ai_patterns: randomInt(2) === 1,
+      news_weight: Math.round(randomInt(11)) / 10,
+      stake_amount: 1 + randomInt(1000),
+      max_daily_trades: 1 + randomInt(500),
+      agentPolicy: ma,
+      target_payout_usd: randomInt(500_001),
+      risk_tolerance_percent: randomInt(21) * 5,
+      paper_bankroll: 100 + randomInt(99_900),
+      auto_stop_mode: pickOne(stopModes),
+    });
+  };
+
   const handleSubmit = async () => {
     setError(null);
     if (!form.name?.trim()) {
       setError('Name is required');
       return;
     }
-    if ((form.market_selection || []).length === 0) {
-      setError('Select at least one market');
+    const mkt = (form.market_selection || []) as string[];
+    const ast = (form.asset_selection || []) as string[];
+    if (mkt.length === 0 && ast.length === 0) {
+      setError('Select at least one market or asset');
       return;
     }
     if ((form.contract_types || []).length === 0) {
@@ -176,6 +347,7 @@ export function BotCreationWizard({ onSubmit, onCancel }: Props) {
       ...baseCfg,
       riskProfile: form.risk_profile,
       marketSelection: form.market_selection,
+      assetSelection: (form.asset_selection || []) as string[],
       contractTypes: form.contract_types,
       indicators: {
         technical: form.technical_indicators || [],
@@ -211,12 +383,26 @@ export function BotCreationWizard({ onSubmit, onCancel }: Props) {
   };
 
   return (
-    <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-2">
-      <div>
-        <h2 className="text-lg font-black font-mono text-white tracking-tight">DEPLOY NEW BOT</h2>
-        <p className="text-[11px] font-mono text-white/40 mt-1">
-          Answer the questions below to customize your AI trading agent.
-        </p>
+    <div className="space-y-5 pr-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-black font-mono text-white tracking-tight">DEPLOY NEW BOT</h2>
+          <p className="text-[11px] font-mono text-white/40 mt-1">
+            Answer the questions below to customize your AI trading agent.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={randomizeAll}
+          className="shrink-0 px-3 py-2 rounded text-[10px] font-mono uppercase tracking-wider font-bold transition"
+          style={{
+            background: 'rgba(232,180,94,0.12)',
+            border: `1px solid ${GOLD}`,
+            color: GOLD,
+          }}
+        >
+          Randomize
+        </button>
       </div>
 
       {SECTIONS.map((section) => {

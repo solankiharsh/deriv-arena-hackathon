@@ -57,6 +57,7 @@ type Bot struct {
 type BotConfig struct {
 	RiskProfile       string           `json:"riskProfile"`
 	MarketSelection   []string         `json:"marketSelection"`
+	AssetSelection    []string         `json:"assetSelection"`
 	ContractTypes     []string         `json:"contractTypes"`
 	Indicators        IndicatorsConfig `json:"indicators"`
 	Execution         ExecutionConfig  `json:"execution"`

@@ -31,6 +31,8 @@ export interface TimeRestrictions {
 export interface BotConfig {
   riskProfile: 'conservative' | 'moderate' | 'aggressive';
   marketSelection: string[];
+  /** Synthetic FX/crypto/rise-fall tickers (separate from volatility indices) */
+  assetSelection?: string[];
   contractTypes: string[];
   indicators: IndicatorsConfig;
   execution: ExecutionConfig;
@@ -216,6 +218,7 @@ export function defaultBotConfig(): BotConfig {
   return {
     riskProfile: 'moderate',
     marketSelection: ['VOL100-USD'],
+    assetSelection: [],
     contractTypes: ['CALL', 'PUT'],
     indicators: {
       technical: ['rsi'],

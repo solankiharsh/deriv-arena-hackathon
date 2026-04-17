@@ -149,27 +149,29 @@ export function BotDashboard() {
       <Sheet open={wizardOpen} onOpenChange={setWizardOpen}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-xl overflow-y-auto border-l"
+          className="w-full sm:max-w-xl flex flex-col h-full max-h-[100dvh] min-h-0 overflow-hidden border-l p-0 gap-0"
           style={{ background: '#07090F', borderColor: 'rgba(255,255,255,0.08)' }}
         >
-          <SheetHeader>
-            <SheetTitle className="sr-only">Deploy new trading bot</SheetTitle>
+          <SheetHeader className="sr-only shrink-0 px-6 pt-6">
+            <SheetTitle>Deploy new trading bot</SheetTitle>
           </SheetHeader>
-          <BotCreationWizard
-            onCancel={() => setWizardOpen(false)}
-            onSubmit={async (payload) => {
-              const created = await createBot(userId, payload);
-              if (created) {
-                setWizardOpen(false);
-                setSelectedBotId(created.id);
-                try {
-                  await startBot(userId, created.id);
-                } catch {
-                  /* ignore; user can press Start manually */
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6 pt-6">
+            <BotCreationWizard
+              onCancel={() => setWizardOpen(false)}
+              onSubmit={async (payload) => {
+                const created = await createBot(userId, payload);
+                if (created) {
+                  setWizardOpen(false);
+                  setSelectedBotId(created.id);
+                  try {
+                    await startBot(userId, created.id);
+                  } catch {
+                    /* ignore; user can press Start manually */
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+          </div>
         </SheetContent>
       </Sheet>
 

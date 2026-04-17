@@ -15,6 +15,7 @@ func (sp *SignalProcessor) ProcessSignals(
 	news *NewsSentiment,
 	pattern *PatternResult,
 	cfg BotConfig,
+	activeSymbol string,
 ) *TradeDecision {
 	decision := &TradeDecision{
 		SignalSources: make(map[string]any),
@@ -128,9 +129,11 @@ func (sp *SignalProcessor) ProcessSignals(
 		return decision
 	}
 
-	// Select first allowed market + contract type
-	if len(cfg.MarketSelection) > 0 {
-		decision.Symbol = cfg.MarketSelection[0]
+	// Active symbol (engine rotates across markets + assets)
+	if activeSymbol != "" {
+		decision.Symbol = activeSymbol
+	} else if syms := TradingSymbols(cfg); len(syms) > 0 {
+		decision.Symbol = syms[0]
 	}
 	ct := "CALL"
 	if len(cfg.ContractTypes) > 0 {

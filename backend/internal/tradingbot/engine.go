@@ -46,6 +46,7 @@ type botRunner struct {
 	dayCount           int
 	dayStart           time.Time
 	sessionBaselinePnL decimal.Decimal // bot_analytics.total_pnl at StartBot (session PnL = current - baseline)
+	symbolRotate       int // round-robin index into TradingSymbols(bot.Config)
 }
 
 // NewBotEngine wires all subsystems.
@@ -235,10 +236,12 @@ func (e *BotEngine) processBot(ctx context.Context, r *botRunner) error {
 		}
 	}
 
-	symbol := "VOL100-USD"
-	if len(bot.Config.MarketSelection) > 0 {
-		symbol = bot.Config.MarketSelection[0]
+	symbols := TradingSymbols(bot.Config)
+	if len(symbols) == 0 {
+		symbols = []string{"VOL100-USD"}
 	}
+	symbol := symbols[r.symbolRotate%len(symbols)]
+	r.symbolRotate++
 
 	candles := e.marketData.GetCandles(symbol, 60)
 
@@ -261,7 +264,7 @@ func (e *BotEngine) processBot(ctx context.Context, r *botRunner) error {
 		cancel()
 	}
 
-	decision := e.processor.ProcessSignals(techSignals, newsSig, pattern, bot.Config)
+	decision := e.processor.ProcessSignals(techSignals, newsSig, pattern, bot.Config, symbol)
 
 	// Log signal
 	action := ActionBelowThreshold
