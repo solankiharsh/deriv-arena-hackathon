@@ -19,6 +19,7 @@
    - [Phase 5: Mobile Responsive Design](#phase-5-mobile-responsive-design)
    - [Phase 6: Analytics, Arena Tabs & Sound Effects](#phase-6-analytics-arena-tabs--sound-effects)
    - [Phase 7: Stability — Hooks & Audio Fixes](#phase-7-stability--hooks--audio-fixes)
+   - [Phase 8: Arena UI Cleanup, Command Center Rewire & Deploy Debugging](#phase-8-arena-ui-cleanup-command-center-rewire--deploy-debugging)
 4. [Debugging Sessions](#4-debugging-sessions)
 5. [How AI Helped Architect the Solution](#5-how-ai-helped-architect-the-solution)
 6. [Key Technical Decisions](#6-key-technical-decisions)
@@ -90,9 +91,25 @@ DerivArena is a gamified trading competition platform that converts demo traders
 │       │       └─ Implement 12-sound SFX system with Howler.js       │
 │       │                                                             │
 │  Phase 7 ──► Stability & Bug Fixes                                  │
-│              ├─ Fix React Rules of Hooks violation (GameTimer)      │
-│              ├─ Debug silent audio (autoplay policy)                │
-│              └─ Final verification pass                             │
+│       │      ├─ Fix React Rules of Hooks violation (GameTimer)      │
+│       │      ├─ Debug silent audio (autoplay policy)                │
+│       │      └─ Final verification pass                             │
+│       │                                                             │
+│  Phase 8 ──► Arena UI Cleanup, Command Center, Deploy Debugging     │
+│              ├─ Slim top navbar (remove Whitepaper / Docs / X /     │
+│              │  Create) and rebuild site-wide footer                │
+│              ├─ Remove Leaderboard + Predictions from Arena tabs,   │
+│              │  rename Command → Hub                                │
+│              ├─ Replace random agent map with real bot nodes +      │
+│              │  clickable P&L detail sheet                          │
+│              ├─ Command Center: quest-based tasks, bot XP math      │
+│              │  mirrored from backend, Activity tab                 │
+│              ├─ Fix stat cards stuck at zero on Vercel              │
+│              │  (force-dynamic /api/auth/me + refetch on mount)     │
+│              ├─ Diagnose "bot stuck / not trading" (signals /       │
+│              │  thresholds / in-memory runners lost on restart)     │
+│              └─ Diagnose "Failed to fetch" on deployed app          │
+│                 (NEXT_PUBLIC_API_URL + Railway CORS_ORIGINS)        │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -333,6 +350,96 @@ This was the largest multi-task prompt. The AI:
 
 ---
 
+### Phase 8: Arena UI Cleanup, Command Center Rewire & Deploy Debugging
+
+**Context:** After the initial stack was live, the remaining work was a mix of UI pruning, rewiring the Command Center so the XP bar and tasks reflected real bot activity (not `+0 XP` placeholders), turning the Map into a real bot-centric view, and then chasing down why the deployed Vercel build showed `Failed to fetch` even though everything worked locally.
+
+**Prompt (verbatim) — UI pruning:**
+
+> *"Task 1: I want to remove the whitepaper from the top nav bar and then put down the rest of the footer on the page. And then remove the whitepaper and twitter from the top navbar."*
+>
+> *"Task 2: Remove the leaderboard from the arena tab as well refer to <image>."*
+>
+> *"Task 3: the entire top bar is congested make it look proper and neat."*
+>
+> *"Task 4: those are not working on the deployed app and i dont know why. Find the error and fix that as well it should correctly track how many games played, your rating, win and win rate."*
+>
+> *"Task 5: remove the predictions tab as well from the arena tab."*
+
+**Follow-up prompts:**
+
+> *"task 1: remove the create from the top navbar but do not remove it the functionality, just remove the name of that tab from the navbar. do not break the code."*
+>
+> *"task 2: rename the command tab from the arena tab to hub."*
+>
+> *"Is the deriv fallback icon that is shown a part of the UI or a default thing? if its a part of UI can we remove it? like wherever that is there can we remove it?"* → followed by *"Can u remove that from every where."*
+
+**What AI Did:**
+
+1. **Plan-mode pre-flight.** Before editing anything, the AI switched to Plan mode, asked two disambiguating questions (*"Where should Whitepaper/Twitter live after leaving the navbar?"* and *"Do the stats show dashes or just go stale?"*), then produced a written plan file that enumerated every file and snippet to change and marked what was explicitly out of scope.
+
+2. **Navbar slim + site-wide footer:**
+   - `frontend/app/navbar.tsx` — removed `Whitepaper`, `API Docs`, `X/Twitter` (desktop + mobile), later removed `Create` as well (but left `/create` route + Arena page's partner/admin "+ CREATE" button intact). Unused icons (`FileText`, `XIcon`, `PlusCircle`) and the inline `XIcon` helper were dropped.
+   - `frontend/app/layout.tsx` — rebuilt the inline footer into a single horizontal link row (Whitepaper | API Docs | X / Twitter | Deriv API | Telegram) so nothing pulled from the navbar got orphaned.
+
+3. **Arena tabs trim + rename:**
+   - `frontend/app/arena/page.tsx` — `ArenaTab` union narrowed to `'games' | 'live' | 'command_center' | 'map'`. `GlobalLeaderboard` + `LeaderboardRow` were deleted from the file, along with the `PredictionsTab` dynamic import. The visible label for `command_center` was later renamed to `Hub`; the internal value stayed as `command_center` so no component plumbing broke.
+
+4. **Stats always-zero on Vercel (Task 4):**
+   - Two root causes identified and fixed together:
+     - `/api/auth/me` had no `dynamic`/`revalidate` export, so Vercel could serve a cached JSON response and the `arena_users` row stayed stale. Added `export const dynamic = 'force-dynamic'` and `export const revalidate = 0` in `frontend/app/api/auth/me/route.ts`.
+     - `QuickStats` read from the Zustand cache and never refetched — it only got populated when the navbar first mounted `ArenaAuthButton`. Extended `QuickStats` to pull `fetchUser` from `useArenaAuth()` and call it on mount **and** on `visibilitychange === 'visible'`, so returning to the Arena tab after finishing a game refreshes Rating / Games / Wins / Win Rate without a hard reload.
+
+5. **Map rewired to real bots:**
+   - `frontend/components/arena/AgentMap.tsx` — replaced the static `AGENTS_DEF` + random sentiment/god-wallet demo loop with bot nodes pulled from `useBotStore()`. Each bot hashes into a stable color/emoji/token slot and remains draggable/clickable.
+   - New `frontend/components/arena/BotMapDetailSheet.tsx` — clicking a bot opens a side sheet with `BotLevelBadge`, `BotMiniPnLChart` (via `buildCumulativePnLSeries`), and analytics fetched lazily from the bot store.
+   - Empty state text nudges users to create a bot in the Hub tab when none exist yet.
+
+6. **Command Center quest + XP rewire:**
+   - New shared module `frontend/lib/arena-quest-definitions.ts` with `ARENA_QUESTS` (`join_competition`, `first_game`, `first_trade`, `finish_match`, `win_streak`, `share_link`, `referral`). The marketing demo (`quests-leaderboards-demo.tsx`) was switched to derive its list from this module so the landing page and Command Center can never drift apart.
+   - New `frontend/lib/trading-bot-level.ts` mirrors the backend's `levelThresholds` from `backend/internal/tradingbot/leveling.go`, exposing `getBotXpBar(bot)` with segment-local `into/span` values.
+   - `frontend/lib/command-center-bot-adapters.ts` gained `buildArenaQuestTasks(ctx)` with heuristics from arena + bot stats (e.g. `botWinStreak >= 2` satisfies "Win Streak") and non-zero `xpReward` values. The old `xpReward: 0` signal-only list became a secondary fallback.
+   - `frontend/components/dashboard/AgentDataFlow.tsx` now prefetches bot trades and signals, syncs the header XP bar to `getBotXpBar(primaryBot)` via `updateAgent(...)`, and feeds a new `questCtx` into `mergeAgentTasks`. Tabs became `Tasks | Positions | Activity` (the old `Chats` section was retired in favor of a bot-signal feed).
+
+7. **Backend trade-close fix for display:**
+   - `backend/internal/tradingbot/engine.go` — paper/instant fills now set `ClosedAt` equal to `ExecutedAt`, so APIs/clients see closed trades immediately and the Command Center's Positions tab isn't stuck on "open" rows.
+
+8. **Remove the `Deriv Fallback` badge:**
+   - Earlier, a `fixed bottom-4 right-4` pill rendered from `frontend/app/layout.tsx` via `<DerivStreamStatus />`. Since it showed `Deriv Fallback` in production (the legacy v3 WS path) and read as a bug, both the render + import were removed from `layout.tsx` and the `frontend/components/deriv/DerivStreamStatus.tsx` file was deleted. The `DerivStreamStatus` *type* inside `frontend/lib/deriv/websocket.ts` stayed because the WebSocket layer itself still uses it.
+
+**Prompt (verbatim) — trading bots not trading:**
+
+> *"why si the bot not doing any tade ? why are they stuck ??"*
+
+**What AI Did:** read-only diagnosis against `backend/internal/tradingbot/engine.go` and `signal_processor.go`. The `runLoop` ticks every 10 s, but a trade only fires if:
+
+- there's at least one scored signal (technical / news / AI pattern), AND
+- combined `confidence >= threshold` (roughly `0.6` conservative, `0.45` moderate, `0.3` aggressive), AND
+- `MaxDailyTrades` isn't hit and the hour is inside `TimeRestrictions`.
+
+Additional failure mode flagged: `StartBot` refuses if the bot's DB status is already `running`, but the in-memory runner is *not* re-created on backend restart. That causes the classic "UI says RUNNING, but no goroutine is ticking" zombie — `Stop` → `Start` fixes it because `StopBot` is written to mark the DB row `stopped` even when there's no runner in memory.
+
+**Prompt (verbatim) — deployed app "Failed to fetch":**
+
+> *"Why is it saying failed to fetch? it was working when i tested it locally now in the deployed version its not showing and when i create a new bot, its not deploying as well i click deploy bit."*
+>
+> (Later) *"Request URL: https://deriv-arena-hackathon-production.up.railway.app/api/bots/?user_id=… referer: https://arena.solharsh.com/ … This is the error i am getting, how to fix it?"*
+
+**What AI Did:**
+
+1. **First round — env var:** traced `frontend/lib/api/trading-bots.ts` to `const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090'`. `NEXT_PUBLIC_*` is inlined at Vercel *build* time, and the Vercel project didn't have that variable, so the deployed bundle called `http://localhost:8090/api/bots/...` from the user's browser → instant `TypeError: Failed to fetch`. Fix: set `NEXT_PUBLIC_API_URL=https://deriv-arena-hackathon-production.up.railway.app` in Vercel env vars and redeploy.
+
+2. **Second round — CORS:** after the env was fixed, requests reached Railway but the custom domain `https://arena.solharsh.com` was still blocked. Verified with `curl` that a GET returned 200 but with **no** `access-control-allow-origin` header, and the OPTIONS preflight was also missing CORS headers. Fix: extend the `CORS_ORIGINS` env on Railway to include `https://arena.solharsh.com` (comma-separated, exact match, no trailing slash), then restart the service. `backend/cmd/server/main.go` already merges `CORS_ORIGINS` into the allow list at startup — no code change needed.
+
+**Architecture Decisions (Phase 8):**
+
+- **One source of truth for quests.** A shared `ARENA_QUESTS` array drives both the marketing landing page and the Command Center's Tasks tab. The Command Center has no local quest copy.
+- **Bot level math lives in both layers, intentionally.** `backend/internal/tradingbot/leveling.go` remains the authority; the new `frontend/lib/trading-bot-level.ts` mirrors `levelThresholds` so the XP bar can render immediately without a round trip. The two constants are kept side by side with a comment pointing at the backend file so future changes get synced.
+- **Deployment assumes two envs, always.** The frontend needs `NEXT_PUBLIC_API_URL`, and the backend needs `CORS_ORIGINS` with every public hostname the frontend is served from. Adding a new domain (custom, preview, etc.) is a two-place change; nothing is auto-discovered.
+- **Keep compatibility keys internal.** Renaming `Command` → `Hub` changed only the label; the `tab === 'command_center'` routing and `command_center` analytics value stayed untouched so downstream code didn't break.
+
+---
+
 ## 4. Debugging Sessions
 
 ### Debug Session 1: Partner Button Not Responding
@@ -427,6 +534,84 @@ User report → AI checks sound system implementation
 
 ---
 
+### Debug Session 5: QuickStats Always Showed Dashes on Vercel
+
+**Symptom:** Locally the Arena stat cards (Rating / Games / Wins / Win Rate) worked; on the deployed site they showed `—` or stayed at zero even after playing games.
+
+**Investigation:**
+```
+User report → AI reads QuickStats
+→ Pulls `user` from useArenaAuth() only, never refetches
+→ fetchUser() ran once, on navbar mount
+→ /api/auth/me had no dynamic / revalidate export
+→ Vercel could cache the JSON response → stale arena_users row
+```
+
+**Root Cause:** Two layered issues: (1) the `/api/auth/me` handler was cacheable on Vercel, so the server returned stale stats; (2) even with fresh data, `QuickStats` never asked for it after the initial navbar mount.
+
+**Fix:**
+- `frontend/app/api/auth/me/route.ts` — added `export const dynamic = 'force-dynamic'` and `export const revalidate = 0` so every request re-reads the session + the `arena_users` row.
+- `frontend/app/arena/page.tsx` — `QuickStats` now destructures `fetchUser` from `useArenaAuth()` and calls it on mount, plus on `document.visibilitychange === 'visible'`, so coming back to the tab after finishing a game refreshes the cards without a hard reload.
+
+---
+
+### Debug Session 6: "My Bot Is Stuck — Why Isn't It Trading?"
+
+**Symptom:** Bot card showed `RUNNING` and prior trade counts (87 / 17 / 32), but no new trades appeared.
+
+**Investigation:**
+```
+User prompt → AI reads engine.go runLoop (tick every 10 s)
+→ processBot: MaxDailyTrades guard, TimeRestrictions guard, then signals
+→ SignalProcessor.ProcessSignals:
+    - scores list needs ≥1 entry (tech / news / AI pattern)
+    - confidence = |weighted avg|; must be ≥ threshold
+    - thresholds: aggressive 0.3, moderate 0.45, conservative 0.6
+→ StartBot refuses if bot.Status == "running" and runners map lacks entry
+→ In-memory runners are NOT recreated on backend restart
+```
+
+**Root Cause(s):** Most "stuck" ticks are *intentional* — low confidence, daily cap reached, or outside time window. The silent failure mode is backend restarts: the DB still says `running`, but no goroutine is ticking, so the UI looks alive while nothing happens.
+
+**Fix / Mitigation:**
+- Documented the trade-gating rules in this doc for future operators.
+- Confirmed `StopBot` marks the DB `stopped` even when no runner is present in memory, so `Stop → Start` reliably re-creates a live runner.
+- Flagged a future improvement: on startup, have the backend scan `trading_bots` for `status='running'` rows and rehydrate runners (not yet implemented).
+
+---
+
+### Debug Session 7: "Failed to fetch" on Deployed App
+
+**Symptom:** On the Vercel build at `https://arena.solharsh.com`, the AI Trading Bots card showed `Failed to fetch` and the "Deploy First Bot" button did nothing. Same code worked on `make dev` locally.
+
+**Investigation round 1 — env var:**
+```
+AI reads frontend/lib/api/trading-bots.ts
+→ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090'
+→ NEXT_PUBLIC_* is inlined at BUILD time (Vercel doesn't read .env.local)
+→ Vercel project had no NEXT_PUBLIC_API_URL → bundle called localhost
+→ Browser throws TypeError: Failed to fetch immediately (no server listening)
+```
+
+**Fix 1:** Added `NEXT_PUBLIC_API_URL=https://deriv-arena-hackathon-production.up.railway.app` to Vercel Production + Preview + Development envs, triggered a clean redeploy.
+
+**Investigation round 2 — CORS:**
+```
+User re-ran → new error, different cause
+AI hit Railway with curl using Origin: https://arena.solharsh.com
+→ GET returned 200 but NO access-control-allow-origin header
+→ OPTIONS preflight returned 200 but NO allow-* headers either
+→ Only https://deriv-arena-hackathon-beta.vercel.app was whitelisted
+```
+
+**Root Cause:** `backend/cmd/server/main.go` builds its allowed origin list from a localhost default plus `CORS_ORIGINS` env. The custom domain `arena.solharsh.com` wasn't in that env, so the Go CORS middleware never echoed an `access-control-allow-origin`, and Chrome blocked every bot API call.
+
+**Fix 2:** Append `https://arena.solharsh.com` (comma-separated, exact match, no trailing slash) to the Railway service's `CORS_ORIGINS` variable, then restart the Railway deployment so Go re-reads env.
+
+**Follow-up guidance recorded in this doc:** any new domain (custom, `www.`, Vercel preview URL) must be added to `CORS_ORIGINS` *and* the frontend must have `NEXT_PUBLIC_API_URL` set before rebuild.
+
+---
+
 ## 5. How AI Helped Architect the Solution
 
 ### Subagent Orchestration Pattern
@@ -480,6 +665,11 @@ The AI consistently routed features to the correct stack based on context, preve
 | **Single login with role selection** | DRY — one auth flow for both players and partners |
 | **Sound system singleton** | One Howl instance per sound, cached in Map, prevents duplicate loading |
 | **Parallel subagent exploration** | 10x faster codebase understanding for complex multi-file features |
+| **Shared `ARENA_QUESTS` module** | Single source for quest copy + point values; marketing demo and Command Center tasks can't drift |
+| **`trading-bot-level.ts` mirrors Go thresholds** | UI can render the XP bar instantly without a round trip; comment in both files pins them together |
+| **`force-dynamic` on `/api/auth/me`** | Stops Vercel from caching the user row; stats refresh every request instead of staying at zero |
+| **`CORS_ORIGINS` env on backend** | Adding new frontend hosts is a Railway env edit, not a code deploy; exact-match avoids wildcard risk |
+| **Rename label, not internal key** | `Command` → `Hub` changed display only; `tab === 'command_center'` kept existing routing/analytics untouched |
 
 ---
 
@@ -508,6 +698,14 @@ The AI consistently routed features to the correct stack based on context, preve
 4. **Rules of Hooks** — A subtle ordering issue that only manifested at runtime, requiring careful static analysis to identify.
 
 5. **Resource consumption** — A large dependency tree (Three.js, PixiJS, Solana stack, Recharts) makes the dev server legitimately resource-intensive.
+
+6. **`NEXT_PUBLIC_*` is a build-time snapshot** — `.env.local` doesn't reach Vercel, and a missing env var silently falls back to `localhost:8090`, which only shows up in production as `Failed to fetch`. Always check the Vercel project env vars, not the repo.
+
+7. **Cross-origin CORS is an env concern, not a code concern** — adding a new custom domain or Vercel preview URL can break every bot call until `CORS_ORIGINS` on the Go backend is updated *and* the service is restarted so it re-reads the env.
+
+8. **"Running" in the DB vs in memory** — the trading bot engine's in-memory runner is authoritative for whether trades actually fire; the DB status is a projection of it. A backend restart can desync the two, and the visible fix (`Stop → Start`) is unintuitive unless you know that.
+
+9. **Plan-mode for UI cleanup pays off** — the Phase 8 navbar/footer/tabs/stats work was safer because the plan file enumerated every edit first and listed what was deliberately out of scope, so removing components didn't silently orphan links or break keys downstream.
 
 ---
 
