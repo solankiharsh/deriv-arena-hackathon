@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Send, Loader2, Lightbulb } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { Button } from '@/components/ui/button';
 import { CopilotMessageParts } from '@/components/trading-copilot/CopilotMessageParts';
 import { getCopilotDB } from '@/lib/trading-copilot/copilot-db';
+import { COPILOT_IDEAS } from '@/lib/trading-copilot/copilot-ideas';
 import type { CopilotMessage, MessagePart, WidgetType } from '@/lib/trading-copilot/types';
 
 function partsToApiContent(parts: MessagePart[]): string {
@@ -25,20 +28,37 @@ function generateTitle(messages: CopilotMessage[]): string {
   return `${t.slice(0, 48).trim()}…`;
 }
 
+async function parseChatErrorResponse(res: Response): Promise<string> {
+  const raw = await res.text().catch(() => '');
+  if (!raw) return `Request failed (${res.status})`;
+  try {
+    const j = JSON.parse(raw) as { error?: string };
+    if (typeof j?.error === 'string' && j.error.trim()) return j.error.trim();
+  } catch {
+    /* keep raw */
+  }
+  return raw.trim() || `Request failed (${res.status})`;
+}
+
 export function CopilotChatView({
   conversationId,
   userId,
   initialMessages,
+  autoSendPrompt,
 }: {
   conversationId: string;
   userId: string;
   initialMessages: CopilotMessage[];
+  /** If set and the thread has no messages yet, send once then strip `?seed=` from the URL. */
+  autoSendPrompt?: string | null;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<CopilotMessage[]>(initialMessages);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<CopilotMessage[]>(messages);
+  const autoSendKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -48,6 +68,10 @@ export function CopilotChatView({
     setMessages(initialMessages);
     setInput('');
   }, [conversationId, initialMessages]);
+
+  useEffect(() => {
+    autoSendKeyRef.current = null;
+  }, [conversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,16 +105,15 @@ export function CopilotChatView({
     [conversationId, userId],
   );
 
-  const handleSubmit = useCallback(
-    async (e?: React.FormEvent) => {
-      e?.preventDefault();
-      const text = input.trim();
-      if (!text || streaming) return;
+  const sendMessageWithText = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || streaming) return;
 
       const userMsg: CopilotMessage = {
         id: nanoid(),
         role: 'user',
-        parts: [{ type: 'text', content: text }],
+        parts: [{ type: 'text', content: trimmed }],
       };
       const assistantId = nanoid();
       const assistantMsg: CopilotMessage = {
@@ -118,8 +141,8 @@ export function CopilotChatView({
         });
 
         if (!res.ok || !res.body) {
-          const errText = await res.text().catch(() => '');
-          throw new Error(errText || `Request failed (${res.status})`);
+          const msg = await parseChatErrorResponse(res);
+          throw new Error(msg);
         }
 
         const reader = res.body.getReader();
@@ -143,7 +166,13 @@ export function CopilotChatView({
             if (!line.startsWith('data: ')) continue;
             const payload = line.slice(6).trim();
             if (payload === '[DONE]') continue;
-            let evt: { type?: string; content?: string; widgetType?: string; data?: unknown; message?: string };
+            let evt: {
+              type?: string;
+              content?: string;
+              widgetType?: string;
+              data?: unknown;
+              message?: string;
+            };
             try {
               evt = JSON.parse(payload) as typeof evt;
             } catch {
@@ -201,17 +230,67 @@ export function CopilotChatView({
         setStreaming(false);
       }
     },
-    [input, streaming, persistConversation],
+    [streaming, persistConversation],
   );
+
+  useEffect(() => {
+    const raw = autoSendPrompt?.trim();
+    if (!raw) return;
+    if (initialMessages.length > 0) return;
+    if (streaming) return;
+    const key = `${conversationId}::${raw}`;
+    if (autoSendKeyRef.current === key) return;
+    autoSendKeyRef.current = key;
+    router.replace(`/trading-copilot/${conversationId}`, { scroll: false });
+    void sendMessageWithText(raw);
+  }, [
+    autoSendPrompt,
+    conversationId,
+    initialMessages.length,
+    streaming,
+    router,
+    sendMessageWithText,
+  ]);
+
+  const handleSubmit = useCallback(
+    async (e?: React.FormEvent) => {
+      e?.preventDefault();
+      await sendMessageWithText(input);
+    },
+    [input, sendMessageWithText],
+  );
+
+  const quickStarters = COPILOT_IDEAS.slice(0, 4);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-bg-primary">
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 max-w-3xl mx-auto w-full">
         {messages.length === 0 ? (
-          <p className="text-text-muted text-center text-sm">
-            Ask about markets, charts, or trade ideas. The assistant uses Deriv context and structured
-            widgets.
-          </p>
+          <div className="space-y-4 text-center">
+            <p className="text-text-muted text-sm">
+              Ask about markets, charts, or trade ideas. The assistant uses Deriv context and structured
+              widgets.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {quickStarters.map((idea) => (
+                <button
+                  key={idea.id}
+                  type="button"
+                  disabled={streaming}
+                  onClick={() => void sendMessageWithText(idea.prompt)}
+                  className="text-xs text-left max-w-[220px] rounded-lg border border-border bg-bg-secondary px-3 py-2 text-text-secondary hover:border-accent-primary/40 hover:text-text-primary transition-colors disabled:opacity-50"
+                >
+                  {idea.title}
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" asChild className="gap-1.5">
+              <Link href="/trading-copilot/ideas">
+                <Lightbulb className="w-4 h-4" />
+                Browse all ideas
+              </Link>
+            </Button>
+          </div>
         ) : null}
         {messages.map((m) => (
           <div

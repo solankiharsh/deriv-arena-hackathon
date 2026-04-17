@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useArenaAuth } from '@/store/arenaAuthStore';
 import { CopilotChatView } from '@/components/trading-copilot/CopilotChatView';
 import { getCopilotDB } from '@/lib/trading-copilot/copilot-db';
 import type { CopilotMessage } from '@/lib/trading-copilot/types';
 
-export default function TradingCopilotConversationPage() {
+function TradingCopilotConversationInner() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = typeof params?.id === 'string' ? params.id : '';
+const seedPrompt = searchParams?.get('seed') ?? null;
   const user = useArenaAuth((s) => s.user);
   const [initial, setInitial] = useState<CopilotMessage[] | null>(null);
 
@@ -48,5 +50,26 @@ export default function TradingCopilotConversationPage() {
     );
   }
 
-  return <CopilotChatView conversationId={id} userId={user.id} initialMessages={initial} />;
+  return (
+    <CopilotChatView
+      conversationId={id}
+      userId={user.id}
+      initialMessages={initial}
+      autoSendPrompt={seedPrompt}
+    />
+  );
+}
+
+export default function TradingCopilotConversationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-1 items-center justify-center text-text-muted text-sm">
+          Loading conversation…
+        </div>
+      }
+    >
+      <TradingCopilotConversationInner />
+    </Suspense>
+  );
 }

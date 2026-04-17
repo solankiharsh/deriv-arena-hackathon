@@ -65,25 +65,18 @@ db-down:
 	@echo "✅ PostgreSQL stopped"
 
 db-migrate:
-	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -c "\dt" 2>/dev/null | grep -q competitions && \
-		echo "✅ Database already migrated" || \
-		($(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.up.sql && \
-		echo "✅ Migrations complete")
-	@$(MAKE) db-apply-020-deriv-miles
-	@$(MAKE) db-seed-trading-copilot
+	@bash "$(MAKEFILE_DIR)scripts/db-migrate.sh"
 
 db-apply-020-deriv-miles:
-	@PSQL="$(PSQL)" DB_HOST="$(DB_HOST)" DB_PORT="$(DB_PORT)" DB_USER="$(DB_USER)" DB_NAME="$(DB_NAME)" \
-		bash "$(MAKEFILE_DIR)scripts/ensure-020-deriv-miles.sh"
+	@bash "$(MAKEFILE_DIR)scripts/ensure-020-deriv-miles.sh"
 
 db-seed-trading-copilot:
 	@echo "📎 Applying Trading Copilot / marketplace miles catalog seed (idempotent)…"
-	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -v ON_ERROR_STOP=1 \
-		-f "$(MAKEFILE_DIR)scripts/seed-trading-copilot-catalog.sql" && \
+	@bash "$(MAKEFILE_DIR)scripts/psql-repo.sh" -f "$(MAKEFILE_DIR)scripts/seed-trading-copilot-catalog.sql" && \
 		echo "✅ Miles catalog seed OK"
 
 db-rollback:
-	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.down.sql
+	@bash "$(MAKEFILE_DIR)scripts/psql-repo.sh" -f "$(MAKEFILE_DIR)backend/migrations/010_competitions.down.sql"
 	@echo "✅ Migrations rolled back"
 
 stop:

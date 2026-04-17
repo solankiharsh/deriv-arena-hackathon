@@ -21,3 +21,6 @@ frontend/tsconfig.tsbuildinfo
 # IDE
 .idea/
 .vscode/
+
+# Local MCP client installs (do not commit dependencies)
+mcp-client/node_modules/

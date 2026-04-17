@@ -52,7 +52,7 @@ export async function consumeTradingCopilotCredit(userId: string): Promise<boole
        WHERE user_id = $1
          AND credits_remaining > 0
          AND expires_at > NOW()
-       RETURNING id`,
+       RETURNING user_id`,
       [userId],
     );
     return (res.rowCount ?? 0) > 0;

@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { nanoid } from 'nanoid';
-import { MessageSquare, PanelLeft, Plus, Trash2 } from 'lucide-react';
+import { Lightbulb, MessageSquare, PanelLeft, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCopilotDB } from '@/lib/trading-copilot/copilot-db';
 import type { CopilotConversationRow } from '@/lib/trading-copilot/copilot-db';
@@ -78,6 +78,20 @@ export function CopilotSidebar({ userId }: { userId: string }) {
           <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => void handleNew()}>
             <Plus className="w-4 h-4" />
           </Button>
+        </div>
+        <div className="px-2 pt-2 pb-1">
+          <Link
+            href="/trading-copilot/ideas"
+            onClick={() => setOpen(false)}
+            className={`flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors border ${
+              pathname === '/trading-copilot/ideas'
+                ? 'bg-accent-primary/15 text-accent-primary border-accent-primary/30'
+                : 'text-text-secondary hover:bg-white/5 border-transparent'
+            }`}
+          >
+            <Lightbulb className="w-4 h-4 shrink-0" />
+            <span>Ideas</span>
+          </Link>
         </div>
         <nav className="flex-1 overflow-y-auto p-2 space-y-1">
           {items.length === 0 ? (

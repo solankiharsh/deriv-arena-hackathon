@@ -161,66 +161,74 @@ async function executeToolForModel(
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const session = await getSession();
-  if (!session) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-  }
-
-  const uid = session.uid;
-  if (!checkRateLimit(`copilot:${uid}`)) {
-    return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
-  }
-
-  const ent = await getTradingCopilotEntitlement(uid);
-  if (!ent.ok) {
-    return new Response(JSON.stringify({ error: 'Trading Copilot is not active for this account.' }), {
-      status: 403,
-    });
-  }
-
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
-  }
+    const session = await getSession();
+    if (!session) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
 
-  const parsed = BodySchema.safeParse(body);
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'Invalid request' }), { status: 400 });
-  }
+    const uid = session.uid;
 
-  if (!process.env.OPENAI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'Assistant is not configured.' }), { status: 503 });
-  }
+    if (!checkRateLimit(`copilot:${uid}`)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
+    }
 
-  const consumed = await consumeTradingCopilotCredit(uid);
-  if (!consumed) {
-    return new Response(JSON.stringify({ error: 'No Trading Copilot credits remaining.' }), {
-      status: 403,
-    });
-  }
+    const ent = await getTradingCopilotEntitlement(uid);
+    if (!ent.ok) {
+      return new Response(JSON.stringify({ error: 'Trading Copilot is not active for this account.' }), {
+        status: 403,
+      });
+    }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const model = process.env.TRADING_COPILOT_MODEL || 'gpt-4o-mini';
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
+    }
 
-  const encoder = new TextEncoder();
-  const userTurnMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: TRADING_COPILOT_SYSTEM_PROMPT },
-    ...parsed.data.messages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
-  ];
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: 'Invalid request' }), { status: 400 });
+    }
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      const send = (obj: Record<string, unknown> | string) => {
-        const payload = typeof obj === 'string' ? obj : JSON.stringify(obj);
-        controller.enqueue(sseEncode(encoder, payload));
-      };
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'OpenAI is not configured. Set OPENAI_API_KEY in frontend/.env.local (or your deployment environment) and restart the Next.js dev server.',
+        }),
+        { status: 503 },
+      );
+    }
 
-      try {
+    const consumed = await consumeTradingCopilotCredit(uid);
+    if (!consumed) {
+      return new Response(JSON.stringify({ error: 'No Trading Copilot credits remaining.' }), {
+        status: 403,
+      });
+    }
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const model = process.env.TRADING_COPILOT_MODEL || 'gpt-4o-mini';
+
+    const encoder = new TextEncoder();
+    const userTurnMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: TRADING_COPILOT_SYSTEM_PROMPT },
+      ...parsed.data.messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    ];
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        const send = (obj: Record<string, unknown> | string) => {
+          const payload = typeof obj === 'string' ? obj : JSON.stringify(obj);
+          controller.enqueue(sseEncode(encoder, payload));
+        };
+
+        try {
         const conversationMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           ...userTurnMessages,
         ];
@@ -343,20 +351,27 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         controller.enqueue(sseEncode(encoder, '[DONE]'));
         controller.close();
-      } catch (err) {
-        console.error('[trading-copilot/chat]', err);
-        send({ type: 'error', message: 'Something went wrong. Please try again.' });
-        controller.enqueue(sseEncode(encoder, '[DONE]'));
-        controller.close();
-      }
-    },
-  });
+        } catch (err) {
+          console.error('[trading-copilot/chat]', err);
+          send({ type: 'error', message: 'Something went wrong. Please try again.' });
+          controller.enqueue(sseEncode(encoder, '[DONE]'));
+          controller.close();
+        }
+      },
+    });
 
-  return new Response(readable, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  });
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  } catch (err) {
+    console.error('[trading-copilot/chat] outer', err);
+    return new Response(JSON.stringify({ error: 'Trading Copilot request failed.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
