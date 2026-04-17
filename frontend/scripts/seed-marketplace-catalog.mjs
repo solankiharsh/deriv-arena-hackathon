@@ -28,7 +28,7 @@ const items = [
     name: 'Trading Copilot',
     description:
       'Streaming AI assistant with Deriv context, charts, and structured widgets. Includes message credits for the access period.',
-    miles_cost: 1500,
+    miles_cost: 1200,
     metadata: {
       feature: 'trading_copilot',
       message_credits: 600,
@@ -41,7 +41,7 @@ const items = [
     category: 'third_party_tool',
     name: 'AI Chart Analyst — 5 credits',
     description: 'Partner voucher for five AI-powered chart analysis credits.',
-    miles_cost: 300,
+    miles_cost: 250,
     metadata: { partner_url: 'https://deriv.com' },
     sort_order: 41,
   },
@@ -51,7 +51,7 @@ const items = [
     name: 'AI Chart Analyst — 20 credits',
     description:
       'Partner voucher for twenty AI-powered chart analysis credits.',
-    miles_cost: 1100,
+    miles_cost: 900,
     metadata: { partner_url: 'https://deriv.com' },
     sort_order: 42,
   },
@@ -61,7 +61,7 @@ const items = [
     name: 'Pro Trading Signals (7 days)',
     description:
       'Partner voucher for seven days of curated Forex, Crypto & Indices signals.',
-    miles_cost: 700,
+    miles_cost: 500,
     metadata: { partner_url: 'https://deriv.com' },
     sort_order: 43,
   },

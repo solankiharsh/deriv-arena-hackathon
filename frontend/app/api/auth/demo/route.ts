@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db/postgres';
 import { createSession } from '@/lib/auth/session';
+import { awardFirstLogin } from '@/lib/miles/xp';
 import type { ArenaUser } from '@/lib/arena-types';
 import type { UserRole } from '@/lib/arena-types';
 
@@ -124,6 +125,15 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error(`[auth/demo] Failed to create session:`, err);
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+  }
+
+  // Welcome bonus — idempotent, skipped for synthetic/no-DB users by awardXP itself.
+  if (hasDb) {
+    try {
+      await awardFirstLogin(user.id);
+    } catch (err) {
+      console.warn('[auth/demo] awardFirstLogin failed (non-fatal):', err);
+    }
   }
 
   console.log(`[auth/demo] Success: user=${user.id}, role=${user.role}`);

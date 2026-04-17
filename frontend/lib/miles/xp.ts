@@ -11,6 +11,7 @@ export type MilesSourceType =
   // Starter "quick wins" — fire at most once per user so first-time players
   // can see Miles roll in from real actions (not just daily login) and afford
   // their first Marketplace redemption in a single session.
+  | 'first_login'
   | 'first_join'
   | 'first_game'
   | 'first_trade'
@@ -204,6 +205,10 @@ export async function awardWinStreak(
  * source_id) collapses repeated calls to a no-op.
  */
 const STARTER_MILES = {
+  // Welcome bonus on the very first successful login (OAuth or demo).
+  // Sized so every brand-new user can redeem the cheapest Marketplace item
+  // (currently 250 Miles) without having to play a full competition first.
+  firstLogin: 300,
   firstJoin: 100,
   firstGame: 150,
   firstTrade: 125,
@@ -211,6 +216,16 @@ const STARTER_MILES = {
   shareLink: 100,
   referralJoin: 250,
 } as const;
+
+export async function awardFirstLogin(userId: string): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'first_login',
+    sourceId: `first_login_${userId}`,
+    xp: STARTER_MILES.firstLogin * 10,
+    description: 'Welcome bonus — first sign-in',
+  });
+}
 
 export async function awardFirstJoin(userId: string): Promise<AwardResult> {
   return awardXP({

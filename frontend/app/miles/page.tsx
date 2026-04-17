@@ -36,6 +36,7 @@ const SOURCE_META: Record<
   competition_win: { label: 'Competition wins', icon: <Trophy className="w-4 h-4" /> },
   referral: { label: 'Referrals', icon: <Star className="w-4 h-4" /> },
   manual: { label: 'Manual grants', icon: <Star className="w-4 h-4" /> },
+  first_login: { label: 'Welcome bonus', icon: <Star className="w-4 h-4" /> },
   first_join: { label: 'First competition join', icon: <Star className="w-4 h-4" /> },
   first_game: { label: 'First game played', icon: <Star className="w-4 h-4" /> },
   first_trade: { label: 'First trade placed', icon: <TrendingUp className="w-4 h-4" /> },
@@ -48,6 +49,7 @@ const SOURCE_META: Record<
 // players can see exactly what's earned and what's still unlocked.
 interface StarterQuest {
   type:
+    | 'first_login'
     | 'first_join'
     | 'first_game'
     | 'first_trade'
@@ -60,6 +62,7 @@ interface StarterQuest {
 }
 
 const STARTER_QUESTS: StarterQuest[] = [
+  { type: 'first_login',   title: 'Welcome Bonus',             description: 'Granted automatically on your first sign-in — enough for one Marketplace item', miles: 300 },
   { type: 'first_join',    title: 'Join a Competition',        description: 'Enter any live partner challenge',          miles: 100 },
   { type: 'first_game',    title: 'Play Your First Game',      description: 'Start your first arena session',             miles: 150 },
   { type: 'first_trade',   title: 'Complete Your First Trade', description: 'Place one trade inside a game',              miles: 125 },
