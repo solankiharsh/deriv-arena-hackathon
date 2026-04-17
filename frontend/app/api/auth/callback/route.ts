@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { queryOne, execute } from '@/lib/db/postgres';
 import { createSession } from '@/lib/auth/session';
+import { getPublicOrigin } from '@/lib/auth/public-origin';
 import type { ArenaUser } from '@/lib/arena-types';
 
 export async function GET(req: NextRequest) {
@@ -9,10 +10,7 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
-  const origin = (
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  ).trim();
+  const origin = getPublicOrigin(req);
 
   if (error) {
     const desc = url.searchParams.get('error_description') || error;

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { getPublicOrigin } from '@/lib/auth/public-origin';
 
 /**
  * Initiates the Deriv OAuth2 flow with PKCE.
@@ -13,18 +14,13 @@ import crypto from 'crypto';
  *  - `pkce_verifier` and `oauth_state` are single-use; the callback deletes
  *    them after successful verification.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const clientId = (process.env.NEXT_PUBLIC_DERIV_APP_ID || process.env.DERIV_APP_ID || '').trim();
   if (!clientId) {
     return NextResponse.json({ error: 'DERIV_APP_ID not configured' }, { status: 500 });
   }
 
-  // NEXT_PUBLIC_BASE_URL is the canonical production URL (set in Vercel env vars).
-  // Fall back to VERCEL_URL (auto-injected per-deployment) then localhost.
-  const origin = (
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  ).trim();
+  const origin = getPublicOrigin(req);
   const redirectUri = `${origin}/api/auth/callback`;
 
   const codeVerifier = crypto.randomBytes(48).toString('base64url');
