@@ -193,6 +193,28 @@ function LoginContent() {
           <div className="mb-4 p-3 rounded-xl bg-error/10 border border-error/20 text-error text-sm">
             {error === 'missing_params' && 'Authentication failed. Please try again.'}
             {error === 'create_failed' && 'Could not create your account. Please try again.'}
+            {error === 'session_expired' &&
+              'Your sign-in link expired. Please click "Continue with Deriv" below to start over.'}
+            {error === 'state_mismatch' &&
+              'Sign-in was interrupted. For your security we cancelled it. Please try again.'}
+            {error === 'token_exchange_failed' &&
+              'We could not verify your Deriv account. Please try again.'}
+            {error === 'oauth_denied' &&
+              'Sign-in was cancelled on Deriv. Please try again when you are ready.'}
+            {error === 'no_app_id' &&
+              'Deriv app id is not configured. Please contact support.'}
+            {error === 'no_token' &&
+              'Deriv did not return a token. Please try again.'}
+            {![
+              'missing_params',
+              'create_failed',
+              'session_expired',
+              'state_mismatch',
+              'token_exchange_failed',
+              'oauth_denied',
+              'no_app_id',
+              'no_token',
+            ].includes(error) && 'Sign-in failed. Please try again.'}
           </div>
         )}
 

@@ -24,3 +24,9 @@ frontend/tsconfig.tsbuildinfo
 
 # Local MCP client installs (do not commit dependencies)
 mcp-client/node_modules/
+
+.env.local
+.env
+
+# Vercel CLI link metadata (contains project/org IDs for token-based deploys).
+.vercel/

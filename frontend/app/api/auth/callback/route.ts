@@ -27,15 +27,22 @@ export async function GET(req: NextRequest) {
 
   const cookieStore = await cookies();
   const storedState = cookieStore.get('oauth_state')?.value;
+  const codeVerifier = cookieStore.get('pkce_verifier')?.value;
+
+  // Distinguish "cookies were never set / have expired" (most common real-world
+  // cause — user bookmarked the OAuth return URL, opened a new browser, or the
+  // 15-minute TTL lapsed) from "cookies are present but don't match the state
+  // Deriv returned" (the actual CSRF signal).
+  if (!storedState || !codeVerifier) {
+    console.warn(
+      `[auth/callback] OAuth cookies missing (storedState=${!!storedState} verifier=${!!codeVerifier}) — most likely an expired/stale login link.`,
+    );
+    return NextResponse.redirect(`${origin}/login?error=session_expired`);
+  }
+
   if (state !== storedState) {
     console.warn('[auth/callback] State mismatch — possible CSRF');
     return NextResponse.redirect(`${origin}/login?error=state_mismatch`);
-  }
-
-  const codeVerifier = cookieStore.get('pkce_verifier')?.value;
-  if (!codeVerifier) {
-    console.warn('[auth/callback] Missing code_verifier cookie');
-    return NextResponse.redirect(`${origin}/login?error=missing_verifier`);
   }
 
   cookieStore.delete('pkce_verifier');

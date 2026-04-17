@@ -3,6 +3,7 @@ import { query, queryOne, execute } from '@/lib/db/postgres';
 import { getSession } from '@/lib/auth/session';
 import type { GameInstance, InstancePlayer } from '@/lib/arena-types';
 import {
+  awardFirstFinish,
   awardGameXP,
   awardProfitableTrade,
   awardWinStreak,
@@ -92,6 +93,18 @@ export async function POST(
     );
 
     const summary: AwardSummary = { user_id: player.user_id };
+
+    // Starter Miles: crediting "finished first match" is idempotent per user
+    // so replays on previously-finalized instances still grant it exactly
+    // once. Wrapped in try/catch to never break rankings.
+    try {
+      await awardFirstFinish(player.user_id, id);
+    } catch (err) {
+      console.warn(
+        `[finalize] awardFirstFinish failed instance=${id} user=${player.user_id}:`,
+        err,
+      );
+    }
 
     const pnlNum = Number(player.pnl);
     if (Number.isFinite(pnlNum) && pnlNum > 0) {
