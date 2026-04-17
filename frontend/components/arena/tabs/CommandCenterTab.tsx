@@ -20,6 +20,14 @@ const AgentConfigPanel = dynamic(
   },
 );
 
+const BotDashboard = dynamic(
+  () => import('@/components/dashboard/BotDashboard').then(m => ({ default: m.BotDashboard })),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[420px]" />,
+  },
+);
+
 function Skeleton({ className = 'h-[420px]' }: { className?: string }) {
   return (
     <div className={`bg-white/[0.03] animate-pulse rounded-card ${className}`} />
@@ -40,6 +48,7 @@ export default function CommandCenterTab() {
         </span>
       </div>
       <AgentDataFlow />
+      <BotDashboard />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AgentConfigPanel />
       </div>
