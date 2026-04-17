@@ -8,13 +8,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2, Trophy, Users, Clock, ArrowRight, Loader2,
   Swords, BarChart3, Zap, Plus, Activity,
-  Crosshair, TrendingUp, Map,
+  Crosshair, Map,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import type {
-  GameInstance, GameTemplate, GlobalLeaderboardEntry, GameMode,
+  GameInstance, GameTemplate, GameMode,
 } from '@/lib/arena-types';
 import { GAME_MODE_LABELS } from '@/lib/arena-types';
 import GradientText from '@/components/reactbits/GradientText';
@@ -29,10 +29,6 @@ const CommandCenterTab = dynamic(() => import('@/components/arena/tabs/CommandCe
   ssr: false,
   loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
 });
-const PredictionsTab = dynamic(() => import('@/components/arena/tabs/PredictionsTab'), {
-  ssr: false,
-  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
-});
 const MapTab = dynamic(() => import('@/components/arena/tabs/MapTab'), {
   ssr: false,
   loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
@@ -40,7 +36,7 @@ const MapTab = dynamic(() => import('@/components/arena/tabs/MapTab'), {
 const GOLD = '#E8B45E';
 const BG = '#07090F';
 
-type ArenaTab = 'games' | 'live' | 'leaderboard' | 'command_center' | 'predictions' | 'map';
+type ArenaTab = 'games' | 'live' | 'command_center' | 'map';
 
 function LiveInstanceCard({ instance }: { instance: GameInstance & { template_name?: string; game_mode?: string } }) {
   const router = useRouter();
@@ -95,28 +91,6 @@ function LiveInstanceCard({ instance }: { instance: GameInstance & { template_na
         </span>
       </div>
     </motion.div>
-  );
-}
-
-function LeaderboardRow({ entry, rank }: { entry: GlobalLeaderboardEntry; rank: number }) {
-  const medalColors = ['text-amber-400', 'text-gray-300', 'text-amber-700'];
-  return (
-    <div className="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] rounded-lg hover:bg-white/[0.04] transition-colors">
-      <div className={`w-7 text-center font-mono font-bold text-sm ${rank <= 3 ? medalColors[rank - 1] : 'text-text-muted'}`}>
-        {rank}
-      </div>
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-soft/20 to-accent-dark/20 border border-border flex items-center justify-center text-xs font-bold text-text-secondary">
-        {entry.display_name?.charAt(0) || '?'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-text-primary truncate">{entry.display_name}</div>
-        <div className="text-[10px] text-text-muted">{entry.games_played} games · {(entry.win_rate * 100).toFixed(0)}% win</div>
-      </div>
-      <div className="text-right">
-        <div className="font-mono text-sm font-bold text-accent-primary">{Number(entry.arena_rating).toFixed(0)}</div>
-        <div className="text-[10px] text-text-muted">rating</div>
-      </div>
-    </div>
   );
 }
 
@@ -190,47 +164,21 @@ function LiveCompetitions() {
   );
 }
 
-function GlobalLeaderboard() {
-  const [entries, setEntries] = useState<GlobalLeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    arenaApi.leaderboard
-      .global(20)
-      .then((data) => setEntries(data.entries || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-5 h-5 animate-spin text-accent-primary" />
-      </div>
-    );
-  }
-
-  if (entries.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Trophy className="w-8 h-8 text-text-muted/50 mx-auto mb-3" />
-        <p className="text-text-muted text-sm mb-1">No rankings yet</p>
-        <p className="text-text-muted/60 text-xs">Complete a competition to appear on the leaderboard</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-1.5 max-h-[500px] overflow-y-auto scrollbar-custom">
-      {entries.map((entry, i) => (
-        <LeaderboardRow key={entry.user_id} entry={entry} rank={i + 1} />
-      ))}
-    </div>
-  );
-}
-
 function QuickStats() {
-  const { user } = useArenaAuth();
+  const { user, fetchUser } = useArenaAuth();
+
+  // Refetch user on mount and whenever the tab regains focus so Rating / Games /
+  // Wins / Win Rate reflect the latest arena_users row after a finalize.
+  useEffect(() => {
+    fetchUser();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUser();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [fetchUser]);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -289,9 +237,7 @@ export default function ArenaPage() {
   const tabs: { value: ArenaTab; label: string; icon: React.ComponentType<{ className?: string }>; group: 'compete' | 'intel' }[] = [
     { value: 'games', label: 'Games', icon: Gamepad2, group: 'compete' },
     { value: 'live', label: 'Live', icon: Activity, group: 'compete' },
-    { value: 'leaderboard', label: 'Leaderboard', icon: Trophy, group: 'compete' },
-    { value: 'command_center', label: 'Command', icon: Crosshair, group: 'intel' },
-    { value: 'predictions', label: 'Predictions', icon: TrendingUp, group: 'intel' },
+    { value: 'command_center', label: 'Hub', icon: Crosshair, group: 'intel' },
     { value: 'map', label: 'Map', icon: Map, group: 'intel' },
   ];
 
@@ -382,21 +328,9 @@ export default function ArenaPage() {
                 <LiveCompetitions />
               </motion.div>
             )}
-            {tab === 'leaderboard' && (
-              <motion.div key="leaderboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div className="max-w-2xl">
-                  <GlobalLeaderboard />
-                </div>
-              </motion.div>
-            )}
             {tab === 'command_center' && (
               <motion.div key="command_center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <CommandCenterTab />
-              </motion.div>
-            )}
-            {tab === 'predictions' && (
-              <motion.div key="predictions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <PredictionsTab />
               </motion.div>
             )}
             {tab === 'map' && (

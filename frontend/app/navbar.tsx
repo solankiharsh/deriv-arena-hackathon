@@ -4,20 +4,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Swords, Trophy, PlusCircle, LayoutList, Menu, X, Shield, Target, FileText, Star, ShoppingBag, Sparkles } from 'lucide-react';
+import { Swords, Trophy, LayoutList, Menu, X, Shield, Target, Star, ShoppingBag, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GradientText from '@/components/reactbits/GradientText';
 import ArenaAuthButton from '@/components/auth/ArenaAuthButton';
 import JoinTelegramButton from '@/components/JoinTelegramButton';
 import { useArenaAuth } from '@/store/arenaAuthStore';
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
 
 function AppLogo({ className }: { className?: string }) {
   return (
@@ -41,13 +33,11 @@ export default function Navbar() {
     { href: '/arena',          label: 'Arena',          Icon: Swords },
     { href: '/competitions',   label: 'Competitions', Icon: LayoutList },
     { href: '/leaderboard',    label: 'Leaderboard',   Icon: Trophy },
-    { href: '/create',         label: 'Create',        Icon: PlusCircle },
     { href: '/miles',          label: 'Miles',          Icon: Star },
     { href: '/marketplace',    label: 'Marketplace',    Icon: ShoppingBag },
     { href: '/trading-copilot', label: 'Copilot', Icon: Sparkles },
     ...((user?.role === 'partner' || user?.role === 'admin') ? [{ href: '/partner', label: 'Partner', Icon: Target }] : []),
     ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Admin', Icon: Shield }] : []),
-    { href: '/whitepaper',     label: 'Whitepaper',    Icon: FileText },
   ];
 
   const isActive = (href: string) => {
@@ -110,27 +100,6 @@ export default function Navbar() {
                 </li>
               );
             })}
-            <li className="relative h-full flex items-center">
-              <a
-                href="https://developers.deriv.com/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative flex items-center gap-1 px-2 py-2.5 text-xs font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
-              >
-                <span>API Docs</span>
-              </a>
-            </li>
-            <li className="relative h-full flex items-center">
-              <a
-                href="https://x.com/HarshSolan24317"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative flex items-center gap-1 px-2 py-2.5 text-xs font-medium transition-all duration-200 text-text-secondary hover:text-text-primary whitespace-nowrap"
-                title="X / Twitter"
-              >
-                <XIcon className="w-4 h-4" />
-              </a>
-            </li>
             <li className="relative h-full flex items-center ml-2">
               <JoinTelegramButton variant="desktop" />
             </li>
@@ -198,23 +167,6 @@ export default function Navbar() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2, delay: navLinks.length * 0.05 }}
-                >
-                  <a
-                    href="https://x.com/HarshSolan24317"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-none font-medium transition-all duration-200 text-text-secondary hover:text-text-primary hover:bg-white/5"
-                  >
-                    <XIcon className="w-5 h-5" />
-                    <span>Twitter</span>
-                  </a>
-                </motion.li>
-                <motion.li
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.2, delay: (navLinks.length + 1) * 0.05 }}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <JoinTelegramButton variant="mobile" />
@@ -223,7 +175,7 @@ export default function Navbar() {
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
-                  transition={{ duration: 0.2, delay: (navLinks.length + 2) * 0.05 }}
+                  transition={{ duration: 0.2, delay: (navLinks.length + 1) * 0.05 }}
                   className="px-4 pt-2"
                 >
                   <ArenaAuthButton />

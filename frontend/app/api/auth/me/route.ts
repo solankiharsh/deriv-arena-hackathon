@@ -4,6 +4,11 @@ import { queryOne } from '@/lib/db/postgres';
 import type { ArenaUser } from '@/lib/arena-types';
 import { awardDailyLogin } from '@/lib/miles/xp';
 
+// Always hit the handler: /me reads the session cookie + live arena_users row.
+// Without this, Vercel can serve a cached JSON response and stats stay stale.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Synthetic user map for demo sessions and no-DB environments.
 // Matches the accounts seeded by /api/auth/demo and the migration SEED_SQL.
 const SYNTHETIC_USERS: Record<string, Partial<ArenaUser>> = {

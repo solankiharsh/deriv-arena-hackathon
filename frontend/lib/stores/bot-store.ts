@@ -37,7 +37,7 @@ interface BotState {
   pauseBot: (userId: string, botId: string) => Promise<void>;
   resumeBot: (userId: string, botId: string) => Promise<void>;
 
-  fetchTrades: (userId: string, botId: string) => Promise<void>;
+  fetchTrades: (userId: string, botId: string, limit?: number) => Promise<void>;
   fetchAnalytics: (userId: string, botId: string) => Promise<void>;
   fetchSignals: (userId: string, botId: string) => Promise<void>;
 
@@ -105,8 +105,8 @@ export const useBotStore = create<BotState>((set, get) => ({
     await get().fetchBots(userId);
   },
 
-  fetchTrades: async (userId, botId) => {
-    const trades = await apiGetBotTrades(userId, botId);
+  fetchTrades: async (userId, botId, limit = 100) => {
+    const trades = await apiGetBotTrades(userId, botId, limit);
     set((s) => ({ trades: { ...s.trades, [botId]: trades } }));
   },
   fetchAnalytics: async (userId, botId) => {

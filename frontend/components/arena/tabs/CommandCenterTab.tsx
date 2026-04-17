@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Loader2 } from 'lucide-react';
 import { useArenaAuthBridge } from '@/lib/arena-auth-bridge';
 
 const AgentDataFlow = dynamic(
@@ -9,14 +8,6 @@ const AgentDataFlow = dynamic(
   {
     ssr: false,
     loading: () => <Skeleton />,
-  },
-);
-
-const AgentConfigPanel = dynamic(
-  () => import('@/components/dashboard/AgentConfigPanel').then(m => ({ default: m.AgentConfigPanel })),
-  {
-    ssr: false,
-    loading: () => <Skeleton className="h-[300px]" />,
   },
 );
 
@@ -49,9 +40,6 @@ export default function CommandCenterTab() {
       </div>
       <AgentDataFlow />
       <BotDashboard />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AgentConfigPanel />
-      </div>
     </div>
   );
 }

@@ -58,14 +58,18 @@ export default function RootLayout({
         {children}
         <DerivStreamStatus />
         <footer className="border-t border-white/[0.04] py-4 px-6 mt-auto">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-text-muted">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-text-muted">
             <span>&copy; {new Date().getFullYear()} DerivArena — Deriv API Grand Prix 2026</span>
-            <div className="flex items-center gap-4">
-              <a href="https://developers.deriv.com" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">Deriv API</a>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+              <a href="/whitepaper" className="hover:text-text-secondary transition-colors">Whitepaper</a>
+              <span className="text-white/10">|</span>
+              <a href="https://developers.deriv.com/docs" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">API Docs</a>
               <span className="text-white/10">|</span>
               <a href="https://x.com/HarshSolan24317" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">X / Twitter</a>
               <span className="text-white/10">|</span>
-              <a href="https://developers.deriv.com/docs" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">API Docs</a>
+              <a href="https://developers.deriv.com" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">Deriv API</a>
+              <span className="text-white/10">|</span>
+              <a href="https://t.me/DerivArenaAsk" target="_blank" rel="noopener noreferrer" className="hover:text-text-secondary transition-colors">Telegram</a>
             </div>
           </div>
         </footer>

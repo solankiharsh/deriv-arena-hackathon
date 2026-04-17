@@ -4,11 +4,20 @@ const GOLD = '#E8B45E';
 const SURF = '#0C1020';
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Pill, Crosshair, Swords, Drama, Rocket, Zap, ChevronDown, ListChecks, MessageSquare, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, Activity, Eye, BarChart3, Users, Flame, Sparkles, Target, Globe } from 'lucide-react';
+import { Pill, Crosshair, Swords, Drama, Rocket, Zap, ChevronDown, ListChecks, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, Activity, Eye, BarChart3, Users, Flame, Sparkles, Target, Globe } from 'lucide-react';
 // usePrivy removed — using arena auth instead
 import { useAuthStore } from '@/store/authStore';
+import { useArenaAuth } from '@/store/arenaAuthStore';
+import { getBotXpBar } from '@/lib/trading-bot-level';
 import { getArenaTasks, getAgentPositions, getAgentConversations } from '@/lib/api';
+import {
+  mergeActivity,
+  mergeAgentTasks,
+  mergePositions,
+} from '@/lib/command-center-bot-adapters';
 import type { AgentTaskType, Position, AgentConversationSummary } from '@/lib/types';
+import { getBotTrades, getBotSignals } from '@/lib/api/trading-bots';
+import type { BotSignalLog, BotTrade } from '@/lib/api/trading-bots';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useBotStore } from '@/lib/stores/bot-store';
@@ -252,16 +261,17 @@ function PulseLayer({
 
 // ── Main component ──────────────────────────────────────────────
 
-type DetailTab = 'tasks' | 'positions' | 'chats';
+type DetailTab = 'tasks' | 'positions' | 'activity';
 
 const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof ListChecks }[] = [
     { id: 'tasks', label: 'Tasks', icon: ListChecks },
     { id: 'positions', label: 'Positions', icon: TrendingUp },
-    { id: 'chats', label: 'Chats', icon: MessageSquare },
+    { id: 'activity', label: 'Activity', icon: Activity },
 ];
 
 export function AgentDataFlow() {
-    const { agent } = useAuthStore();
+    const { agent, updateAgent } = useAuthStore();
+    const { user: arenaUser } = useArenaAuth();
     const user = null as { twitter?: { profilePictureUrl?: string | null } } | null;
     const authenticated = true;
     const login = () => {};
@@ -291,11 +301,53 @@ export function AgentDataFlow() {
         (feedId: string) => primaryBot?.config?.enabledFeeds?.[feedId] ?? true,
         [primaryBot]
     );
-    const [tasks, setTasks] = useState<AgentTaskType[]>([]);
-    const [positions, setPositions] = useState<Position[]>([]);
-    const [chats, setChats] = useState<AgentConversationSummary[]>([]);
+    const [arenaTasks, setArenaTasks] = useState<AgentTaskType[]>([]);
+    const [arenaPositions, setArenaPositions] = useState<Position[]>([]);
+    const [arenaChats, setArenaChats] = useState<AgentConversationSummary[]>([]);
+    const [botTrades, setBotTrades] = useState<BotTrade[]>([]);
+    const [botSignals, setBotSignals] = useState<BotSignalLog[]>([]);
     const [detailLoading, setDetailLoading] = useState(false);
     const fetchedRef = useRef(false);
+
+    // Primary bot drives Command Center pipeline data (running bot, else first).
+    // When it changes while expanded, refetch trading-bot payloads.
+    useEffect(() => {
+        fetchedRef.current = false;
+    }, [primaryBot?.id]);
+
+    // Prefetch bot trades/signals so quest progress and activity work before the panel is expanded.
+    useEffect(() => {
+        if (!primaryBot || !agent) {
+            setBotTrades([]);
+            setBotSignals([]);
+            return;
+        }
+        let cancelled = false;
+        Promise.allSettled([
+            getBotTrades(userId, primaryBot.id, 80),
+            getBotSignals(userId, primaryBot.id, 80),
+        ]).then((results) => {
+            if (cancelled) return;
+            const [trRes, sigRes] = results;
+            if (trRes.status === 'fulfilled') setBotTrades(trRes.value as BotTrade[]);
+            if (sigRes.status === 'fulfilled') setBotSignals(sigRes.value as BotSignalLog[]);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [primaryBot?.id, userId, agent?.id]);
+
+    // Sync legacy header XP bar with trading-bot leveling (matches backend thresholds).
+    useEffect(() => {
+        if (!primaryBot) return;
+        const bar = getBotXpBar(primaryBot);
+        updateAgent({
+            xp: bar.intoLevel,
+            xpForNextLevel: Math.max(1, bar.spanToNext),
+            level: bar.level,
+            levelName: bar.levelName,
+        });
+    }, [primaryBot?.id, primaryBot?.xp, primaryBot?.level, updateAgent]);
 
     useEffect(() => {
         const update = () => {
@@ -309,7 +361,7 @@ export function AgentDataFlow() {
         return () => window.removeEventListener('resize', update);
     }, []);
 
-    // Fetch detail data when expanded for the first time
+    // Fetch arena detail when panel expands (bot trades/signals are prefetched above).
     useEffect(() => {
         if (!expanded || !agent || fetchedRef.current) return;
         fetchedRef.current = true;
@@ -319,13 +371,14 @@ export function AgentDataFlow() {
             getArenaTasks().catch(() => []),
             getAgentPositions(agent.id).catch(() => []),
             getAgentConversations(agent.id).catch(() => []),
-        ]).then(([tasksRes, posRes, chatsRes]) => {
-            if (tasksRes.status === 'fulfilled') setTasks(tasksRes.value as AgentTaskType[]);
-            if (posRes.status === 'fulfilled') setPositions(posRes.value as Position[]);
-            if (chatsRes.status === 'fulfilled') setChats(chatsRes.value as AgentConversationSummary[]);
+        ]).then((results) => {
+            const [tasksRes, posRes, chatsRes] = results;
+            if (tasksRes.status === 'fulfilled') setArenaTasks(tasksRes.value as AgentTaskType[]);
+            if (posRes.status === 'fulfilled') setArenaPositions(posRes.value as Position[]);
+            if (chatsRes.status === 'fulfilled') setArenaChats(chatsRes.value as AgentConversationSummary[]);
             setDetailLoading(false);
         });
-    }, [expanded, agent]);
+    }, [expanded, agent, primaryBot, userId]);
 
     const pulses = usePulseEngine(FEEDS.length, 3.5, 5);
 
@@ -343,11 +396,37 @@ export function AgentDataFlow() {
 
     const agentPos = useMemo(() => ({ x: dims.w * 0.5, y: dims.h * 0.5 }), [dims]);
 
-    const xpPercent = agent ? Math.min(100, Math.round((agent.xp / Math.max(1, agent.xpForNextLevel)) * 100)) : 0;
+    const botBar = primaryBot ? getBotXpBar(primaryBot) : null;
+    const xpPercent = botBar
+        ? botBar.percent
+        : agent
+          ? Math.min(100, Math.round((agent.xp / Math.max(1, agent.xpForNextLevel)) * 100))
+          : 0;
+    const xpLabel = botBar ? botBar.label : agent ? `${agent.xp}/${agent.xpForNextLevel}` : '0/100';
     const hasAgent = !!agent;
 
-    const activeTasks = useMemo(() => tasks.filter(t => t.status === 'OPEN' || t.status === 'CLAIMED'), [tasks]);
-    const openPositions = useMemo(() => positions.filter(p => !p.closedAt), [positions]);
+    const questCtx = useMemo(
+        () => ({
+            totalGames: arenaUser?.total_games ?? 0,
+            totalWins: arenaUser?.total_wins ?? 0,
+            tradeCount: botTrades.length,
+            botWinStreak: primaryBot?.win_streak ?? 0,
+        }),
+        [arenaUser?.total_games, arenaUser?.total_wins, botTrades.length, primaryBot?.win_streak]
+    );
+
+    const displayTasks = useMemo(
+        () => mergeAgentTasks(arenaTasks, botSignals, questCtx),
+        [arenaTasks, botSignals, questCtx]
+    );
+    const displayPositions = useMemo(
+        () => mergePositions(arenaPositions, botTrades, agent?.id ?? '', agent?.name ?? 'Agent'),
+        [arenaPositions, botTrades, agent?.id, agent?.name]
+    );
+    const displayActivity = useMemo(
+        () => mergeActivity(arenaChats, botSignals),
+        [arenaChats, botSignals]
+    );
 
     // ── Mobile layout ──────────────────────────────────────────
     if (isMobile) {
@@ -552,7 +631,7 @@ export function AgentDataFlow() {
                                         />
                                     </div>
                                     <span className="text-[10px] text-white/35 font-mono whitespace-nowrap">
-                                        {agent.xp}/{agent.xpForNextLevel}
+                                        {xpLabel}
                                     </span>
                                 </div>
                             </div>
@@ -577,9 +656,9 @@ export function AgentDataFlow() {
                                             {DETAIL_TABS.map((tab) => {
                                                 const Icon = tab.icon;
                                                 const isActive = activeTab === tab.id;
-                                                const count = tab.id === 'tasks' ? activeTasks.length
-                                                    : tab.id === 'positions' ? openPositions.length
-                                                    : chats.length;
+                                                const count = tab.id === 'tasks' ? displayTasks.length
+                                                    : tab.id === 'positions' ? displayPositions.length
+                                                    : displayActivity.length;
                                                 return (
                                                     <button
                                                         key={tab.id}
@@ -609,11 +688,11 @@ export function AgentDataFlow() {
                                                 <div className="w-5 h-5 border-2 border-[rgba(232,180,94,0.30)] border-t-accent-primary rounded-full animate-spin" />
                                             </div>
                                         ) : activeTab === 'tasks' ? (
-                                            <TasksSection tasks={activeTasks} />
+                                            <TasksSection tasks={displayTasks} />
                                         ) : activeTab === 'positions' ? (
-                                            <PositionsSection positions={openPositions} />
+                                            <PositionsSection positions={displayPositions} />
                                         ) : (
-                                            <ChatsSection chats={chats} />
+                                            <ActivitySection items={displayActivity} />
                                         )}
                                     </div>
                                 </div>
@@ -785,7 +864,7 @@ export function AgentDataFlow() {
                                             />
                                         </div>
                                         <span className="text-[10px] text-white/35 font-mono whitespace-nowrap">
-                                            {agent.xp}/{agent.xpForNextLevel}
+                                            {xpLabel}
                                         </span>
                                     </div>
                                 </div>
@@ -813,9 +892,9 @@ export function AgentDataFlow() {
                                             {DETAIL_TABS.map((tab) => {
                                                 const Icon = tab.icon;
                                                 const isActive = activeTab === tab.id;
-                                                const count = tab.id === 'tasks' ? activeTasks.length
-                                                    : tab.id === 'positions' ? openPositions.length
-                                                    : chats.length;
+                                                const count = tab.id === 'tasks' ? displayTasks.length
+                                                    : tab.id === 'positions' ? displayPositions.length
+                                                    : displayActivity.length;
                                                 return (
                                                     <button
                                                         key={tab.id}
@@ -846,11 +925,11 @@ export function AgentDataFlow() {
                                                 <div className="w-5 h-5 border-2 border-[rgba(232,180,94,0.30)] border-t-accent-primary rounded-full animate-spin" />
                                             </div>
                                         ) : activeTab === 'tasks' ? (
-                                            <TasksSection tasks={activeTasks} />
+                                            <TasksSection tasks={displayTasks} />
                                         ) : activeTab === 'positions' ? (
-                                            <PositionsSection positions={openPositions} />
+                                            <PositionsSection positions={displayPositions} />
                                         ) : (
-                                            <ChatsSection chats={chats} />
+                                            <ActivitySection items={displayActivity} />
                                         )}
                                     </div>
                                 </div>
@@ -1006,11 +1085,21 @@ function TasksSection({ tasks }: { tasks: AgentTaskType[] }) {
         <div className="space-y-2">
             {tasks.map((task) => (
                 <div key={task.taskId} className="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.1] transition-colors">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${task.status === 'CLAIMED' ? 'bg-yellow-400' : 'bg-emerald-400'}`} />
+                    <div
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            task.status === 'COMPLETED'
+                                ? 'bg-emerald-500'
+                                : task.status === 'CLAIMED'
+                                  ? 'bg-yellow-400'
+                                  : 'bg-amber-400/90'
+                        }`}
+                    />
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-white truncate">{task.title}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-white/35 uppercase">{task.taskType}</span>
+                            <span className="text-[10px] text-white/35 uppercase">
+                                {task.taskType === 'quest' ? 'Quest' : task.taskType}
+                            </span>
                             {task.tokenSymbol && (
                                 <span className="text-[10px] text-[#E8B45E] font-mono">${task.tokenSymbol}</span>
                             )}
@@ -1031,7 +1120,7 @@ function PositionsSection({ positions }: { positions: Position[] }) {
         return (
             <div className="text-center py-6">
                 <TrendingUp className="w-6 h-6 text-white/10 mx-auto mb-2" />
-                <p className="text-xs text-white/35">No open positions</p>
+                <p className="text-xs text-white/35">No positions or trades yet</p>
             </div>
         );
     }
@@ -1075,35 +1164,37 @@ function PositionsSection({ positions }: { positions: Position[] }) {
     );
 }
 
-function ChatsSection({ chats }: { chats: AgentConversationSummary[] }) {
-    if (chats.length === 0) {
+function ActivitySection({ items }: { items: AgentConversationSummary[] }) {
+    if (items.length === 0) {
         return (
             <div className="text-center py-6">
-                <MessageSquare className="w-6 h-6 text-white/10 mx-auto mb-2" />
-                <p className="text-xs text-white/35">No conversations yet</p>
+                <Activity className="w-6 h-6 text-white/10 mx-auto mb-2" />
+                <p className="text-xs text-white/35">No signal activity yet — create or start a bot below</p>
             </div>
         );
     }
     return (
         <div className="space-y-2">
-            {chats.map((chat) => (
-                <div key={chat.conversationId} className="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.1] transition-colors">
+            {items.map((row) => (
+                <div key={row.conversationId} className="flex items-center gap-3 px-3 py-2.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.1] transition-colors">
                     <div className="w-8 h-8 bg-[#818CF8]/10 flex items-center justify-center flex-shrink-0">
-                        <MessageSquare className="w-4 h-4 text-[#818CF8]" />
+                        <Activity className="w-4 h-4 text-[#818CF8]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{chat.topic}</p>
-                        {chat.lastMessage && (
-                            <p className="text-[10px] text-white/35 truncate mt-0.5">{chat.lastMessage}</p>
+                        <p className="text-xs font-semibold text-white truncate">{row.topic}</p>
+                        {row.lastMessage && (
+                            <p className="text-[10px] text-white/35 truncate mt-0.5">{row.lastMessage}</p>
                         )}
                     </div>
                     <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
                         <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-white/35">{chat.agentMessageCount} msgs</span>
+                            <span className="text-[10px] text-white/35">
+                                {row.agentMessageCount > 0 ? `${row.agentMessageCount}% conf` : '—'}
+                            </span>
                         </div>
                         <div className="flex items-center gap-1 text-[10px] text-white/35">
                             <Clock className="w-3 h-3" />
-                            <span>{new Date(chat.lastMessageAt).toLocaleDateString()}</span>
+                            <span>{new Date(row.lastMessageAt).toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
