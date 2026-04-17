@@ -11,6 +11,10 @@ Converts demo traders into depositors through competitive Sortino-ranked leaderb
 - **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
 - Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)
 
+### Pull requests (GitHub)
+
+Open PRs with **base `newaddons`**, not `main`, unless you have realigned `main` with this codebase. On this fork, `main` can be a **separate root** (unrelated commit history), so GitHub shows *“There isn’t anything to compare”* / *entirely different commit histories* when you compare `main` ↔ feature branches that grew from `newaddons` (or the same arena lineage).
+
 ## Quick Start
 
 ```bash
