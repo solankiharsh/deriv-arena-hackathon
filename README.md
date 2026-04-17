@@ -11,6 +11,10 @@ Converts demo traders into depositors through competitive Sortino-ranked leaderb
 - **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
 - Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)
 
+### Pull requests (GitHub)
+
+Open PRs with **base `newaddons`**, not `main`, unless you have realigned `main` with this codebase. On this fork, `main` can be a **separate root** (unrelated commit history), so GitHub shows *“There isn’t anything to compare”* / *entirely different commit histories* when you compare `main` ↔ feature branches that grew from `newaddons` (or the same arena lineage).
+
 ## Quick Start
 
 ```bash
@@ -30,7 +34,7 @@ Visit:
 
 - **Backend:** Go + Chi + PostgreSQL (port 8090)
 - **Frontend:** Next.js 14 + React + Tailwind CSS (port 3000)
-- **Database:** PostgreSQL 16 (port 5436, via Colima/Docker)
+- **Database:** PostgreSQL 16 (default **5432** in `Makefile`; use **5436** or another port if you prefer — keep `DATABASE_URL` aligned everywhere, see [Configuration](#configuration))
 
 ## Architecture
 
@@ -232,11 +236,18 @@ its focus, deliverables, and why that work had to come first.
 
 ## Configuration
 
-Edit `.env`:
+Copy the templates and fill in values (never commit real secrets):
+
+| File | Purpose |
+|------|---------|
+| [`.env.example`](.env.example) | Root template for Postgres URL, Go API, JWT, Deriv IDs |
+| [`frontend/.env.example`](frontend/.env.example) | Next.js: `DATABASE_URL`, `OPENAI_API_KEY`, auth, public URLs |
+
+Minimal root `.env` for local `make dev`:
 
 ```bash
-# Database (using port 5436 to avoid conflicts)
-DATABASE_URL=postgresql://derivarena:derivarena@localhost:5436/derivarena
+# Database — must match frontend/.env.local DATABASE_URL when using Trading Copilot
+DATABASE_URL=postgresql://derivarena:derivarena@localhost:5432/derivarena
 
 # Backend
 PORT=8090
@@ -249,7 +260,31 @@ NEXT_PUBLIC_API_URL=http://localhost:8090
 DERIV_APP_ID=
 DERIV_ACCESS_TOKEN=
 DERIV_ACCOUNT_ID=
+
+# JWT for session cookies (required for signed-in flows)
+JWT_SECRET=change-me-in-development-only
 ```
+
+### Trading Copilot (OpenAI + entitlements)
+
+1. **Redeem** “Trading Copilot” (or a bundle that grants credits) in **Marketplace** so Postgres has a row in `deriv_trading_copilot_entitlements`.
+2. In **`frontend/.env.local`** (copy from `frontend/.env.example`):
+   - **`OPENAI_API_KEY`** — required; without it the chat API returns 503 with a clear message.
+   - **`DATABASE_URL`** — same database URL you use for `make db-migrate` / `make db-seed-trading-copilot` so credit decrement and entitlement checks hit the same instance.
+   - Optional: **`TRADING_COPILOT_MODEL`** (defaults to `gpt-4o-mini`).
+3. Restart **`npm run dev`** after changing env vars.
+
+Migrations and catalog seed use **`scripts/load-db-env.sh`**: they load the repo root `.env` and run `psql` with `DATABASE_URL`, matching `scripts/dev.sh` so you do not seed one Postgres while the app reads another.
+
+### Required vs optional (local dev)
+
+| Variable | Where | Required for |
+|----------|--------|----------------|
+| `DATABASE_URL` | root `.env` + `frontend/.env.local` | Miles, marketplace redemption metadata, **Trading Copilot entitlements** |
+| `OPENAI_API_KEY` | `frontend/.env.local` | **Trading Copilot** chat streaming |
+| `JWT_SECRET` | `frontend/.env.local` (and root if tooling signs cookies) | Signed session / auth |
+| `DERIV_APP_ID` / tokens | optional until OAuth/live trading | Deriv OAuth flows |
+| `PRIVY_*` | optional | Privy auth when enabled |
 
 ## Testing
 

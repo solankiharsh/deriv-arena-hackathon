@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMilesStore } from '@/lib/stores/miles-store';
 import { MilesIcon } from '@/components/miles';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,8 @@ import { Shield, Lock, Check } from 'lucide-react';
 interface MarketplaceOption {
   label: string;
   miles: number;
+  /** When set, this SKU is sent to the miles redeem API (catalog id). */
+  catalogId?: string;
 }
 
 interface MarketplaceItem {
@@ -30,9 +33,21 @@ interface MarketplaceItem {
   isAvailable: boolean;
   options?: MarketplaceOption[];
   miles?: number;
+  /** Defaults to `id` for single-SKU items. */
+  catalogId?: string;
 }
 
 const MARKETPLACE_ITEMS: MarketplaceItem[] = [
+  {
+    id: 'premium_trading_copilot',
+    catalogId: 'premium_trading_copilot',
+    title: 'Trading Copilot',
+    description:
+      'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Includes message credits for the access window.',
+    icon: '✨',
+    isAvailable: true,
+    miles: 2400,
+  },
   {
     id: 'ai_chart_analyst',
     title: 'AI Chart Analyst',
@@ -41,8 +56,8 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
     icon: '🤖',
     isAvailable: true,
     options: [
-      { label: '5 AI Credits', miles: 500 },
-      { label: '20 AI Credits', miles: 1800 },
+      { label: '5 AI Credits', miles: 500, catalogId: 'ai_chart_analyst_5' },
+      { label: '20 AI Credits', miles: 1800, catalogId: 'ai_chart_analyst_20' },
     ],
   },
   {
@@ -109,6 +124,7 @@ const AVAILABLE_ITEMS = MARKETPLACE_ITEMS.filter((i) => i.isAvailable);
 const COMING_SOON_ITEMS = MARKETPLACE_ITEMS.filter((i) => !i.isAvailable);
 
 export default function MarketplacePage() {
+  const router = useRouter();
   const user = useArenaAuth((s) => s.user);
   const isHydrated = useArenaAuth((s) => s.isHydrated);
   const nudge = useAuthNudge((s) => s.nudge);
@@ -143,9 +159,13 @@ export default function MarketplacePage() {
   const confirmRedeem = useCallback(async () => {
     if (!pendingItem || !userId) return;
     const cost = pendingItem.option?.miles ?? pendingItem.item.miles ?? 0;
+    const catalogId =
+      pendingItem.option?.catalogId ??
+      pendingItem.item.catalogId ??
+      pendingItem.item.id;
     setIsRedeeming(true);
     try {
-      await redeemItem(userId, pendingItem.item.id, 1, {
+      await redeemItem(userId, catalogId, 1, {
         option: pendingItem.option?.label,
       });
       toast.success('Redeemed! Check your account.');
@@ -156,12 +176,15 @@ export default function MarketplacePage() {
       setModalOpen(false);
       setPendingItem(null);
       fetchBalance(userId);
+      if (catalogId === 'premium_trading_copilot') {
+        router.push('/trading-copilot');
+      }
     } catch (err) {
       toast.error((err as Error).message || 'Redemption failed');
     } finally {
       setIsRedeeming(false);
     }
-  }, [pendingItem, userId, redeemItem, fetchBalance]);
+  }, [pendingItem, userId, redeemItem, fetchBalance, router]);
 
   const pendingCost = pendingItem
     ? (pendingItem.option?.miles ?? pendingItem.item.miles ?? 0)
