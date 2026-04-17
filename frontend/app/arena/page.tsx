@@ -237,7 +237,7 @@ export default function ArenaPage() {
   const tabs: { value: ArenaTab; label: string; icon: React.ComponentType<{ className?: string }>; group: 'compete' | 'intel' }[] = [
     { value: 'games', label: 'Games', icon: Gamepad2, group: 'compete' },
     { value: 'live', label: 'Live', icon: Activity, group: 'compete' },
-    { value: 'command_center', label: 'Command', icon: Crosshair, group: 'intel' },
+    { value: 'command_center', label: 'Hub', icon: Crosshair, group: 'intel' },
     { value: 'map', label: 'Map', icon: Map, group: 'intel' },
   ];
 
