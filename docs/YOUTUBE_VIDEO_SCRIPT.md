@@ -299,7 +299,7 @@ editing without dead air:
 | 0:30      | *Deriv internal: 4% signup→deposit, 0 WhatsApp deposits*           |
 | 1:45      | *Deriv API V2 · OTP WebSocket*                                     |
 | 2:50      | *4 data feeds · audit-logged decisions*                            |
-| 3:40      | *Grounded in Deriv LLMs.txt*                                       |
+| 3:40      | *Grounded in Deriv* `llms.txt` *(official LLM context discovery file)* |
 | 4:20      | *First-time rewards up to 600 Miles on day one*                    |
 | 5:00      | *Contextual deposit nudge · Partner app_id tracked*                |
 | 6:20      | *Model Context Protocol · OpenClaw · Claude Desktop · Telegram*    |

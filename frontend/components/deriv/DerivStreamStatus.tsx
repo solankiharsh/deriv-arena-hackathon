@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Activity, ChevronRight, Radio } from "lucide-react";
 import {
@@ -44,7 +44,6 @@ export function DerivStreamStatus({ className = "" }: { className?: string }) {
   );
   const [expanded, setExpanded] = useState(false);
   const [tickCount, setTickCount] = useState(0);
-  const tickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const unsub = derivWS.onStatusChange(setStatus);
@@ -63,12 +62,9 @@ export function DerivStreamStatus({ className = "" }: { className?: string }) {
       unsub2();
     };
     function bumpTick() {
+      // Increment remounts the ping span (`key={tickCount}`) so Tailwind
+      // `animate-ping` visibly fires again on each tick/ohlc message.
       setTickCount((n) => n + 1);
-      if (tickTimeoutRef.current) clearTimeout(tickTimeoutRef.current);
-      tickTimeoutRef.current = setTimeout(() => {
-        // Force state change to re-render the "idle" style after a brief delay.
-        setTickCount((n) => n);
-      }, 600);
     }
   }, []);
 
@@ -194,7 +190,7 @@ export function DerivStreamStatus({ className = "" }: { className?: string }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <dt className="text-text-muted uppercase tracking-wider text-[10px]">

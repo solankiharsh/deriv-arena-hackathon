@@ -36,6 +36,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type CSSProperties,
   type SVGProps,
 } from 'react';
 import { motion } from 'framer-motion';
@@ -403,7 +404,7 @@ function PillarCard({
         >
           <Icon
             className="w-4 h-4"
-            style={{ color: pillar.color } as React.CSSProperties}
+            style={{ color: pillar.color } as CSSProperties}
           />
         </div>
         <div className="min-w-0 text-left">
