@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Bot as BotIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useBotStore } from '@/lib/stores/bot-store';
@@ -34,6 +34,14 @@ export function BotDashboard() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [levelUpEvent, setLevelUpEvent] = useState<LevelUpEvent | null>(null);
+  const wizardScrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll when opening so content starts at top.
+  useEffect(() => {
+    if (wizardOpen && wizardScrollRef.current) {
+      wizardScrollRef.current.scrollTop = 0;
+    }
+  }, [wizardOpen]);
 
   useEffect(() => {
     fetchBots(userId);
@@ -151,11 +159,27 @@ export function BotDashboard() {
           side="right"
           className="w-full sm:max-w-xl flex flex-col h-full max-h-[100dvh] min-h-0 overflow-hidden border-l p-0 gap-0"
           style={{ background: '#07090F', borderColor: 'rgba(255,255,255,0.08)' }}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              wizardScrollRef.current?.focus({ preventScroll: true });
+            });
+          }}
         >
           <SheetHeader className="sr-only shrink-0 px-6 pt-6">
             <SheetTitle>Deploy new trading bot</SheetTitle>
           </SheetHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6 pt-6">
+          <div
+            ref={wizardScrollRef}
+            tabIndex={-1}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y scroll-smooth scrollbar-custom pl-6 pr-4 pb-6 pt-6 outline-none focus:outline-none"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+            }}
+            onWheel={(ev) => {
+              ev.stopPropagation();
+            }}
+          >
             <BotCreationWizard
               onCancel={() => setWizardOpen(false)}
               onSubmit={async (payload) => {
