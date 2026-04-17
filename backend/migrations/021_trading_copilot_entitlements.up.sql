@@ -1,13 +1,13 @@
 -- Trading Copilot entitlements (message credits + access window)
 
-CREATE TABLE deriv_trading_copilot_entitlements (
+CREATE TABLE IF NOT EXISTS deriv_trading_copilot_entitlements (
     user_id TEXT PRIMARY KEY,
     credits_remaining INT NOT NULL DEFAULT 0 CHECK (credits_remaining >= 0),
     expires_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_trading_copilot_entitlements_expires ON deriv_trading_copilot_entitlements(expires_at);
+CREATE INDEX IF NOT EXISTS idx_trading_copilot_entitlements_expires ON deriv_trading_copilot_entitlements(expires_at);
 
 -- Marketplace catalog rows (IDs aligned with frontend marketplace)
 

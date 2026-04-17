@@ -1,4 +1,4 @@
-.PHONY: help dev backend frontend db-up db-down db-migrate db-rollback clean test stop status
+.PHONY: help dev backend frontend db-up db-down db-migrate db-seed-trading-copilot db-rollback clean test stop status
 
 # Directory containing this Makefile (so `make -C … dev` still works)
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -22,7 +22,8 @@ help:
 	@echo ""
 	@echo "  make db-up        - Start PostgreSQL (port $(DB_PORT))"
 	@echo "  make db-down      - Stop PostgreSQL"
-	@echo "  make db-migrate   - Run database migrations"
+	@echo "  make db-migrate              - Run base DB migrations (010)"
+	@echo "  make db-seed-trading-copilot - Idempotent miles marketplace + Copilot seed (run if redeem fails)"
 	@echo "  make db-rollback  - Rollback migrations"
 	@echo ""
 	@echo "  make test         - Run tests"
@@ -67,6 +68,13 @@ db-migrate:
 		echo "✅ Database already migrated" || \
 		($(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.up.sql && \
 		echo "✅ Migrations complete")
+	@$(MAKE) db-seed-trading-copilot
+
+db-seed-trading-copilot:
+	@echo "📎 Applying Trading Copilot / marketplace miles catalog seed (idempotent)…"
+	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -v ON_ERROR_STOP=1 \
+		-f "$(MAKEFILE_DIR)scripts/seed-trading-copilot-catalog.sql" && \
+		echo "✅ Miles catalog seed OK"
 
 db-rollback:
 	@$(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.down.sql
