@@ -4,139 +4,16 @@
 
 Converts demo traders into depositors through competitive Sortino-ranked leaderboards, AI coaching, and strategic conversion nudges.
 
-## AI agents: OpenClaw, MCP & Telegram
-
-DerivArena ships an MCP stdio server (`mcp-client/derivarena-agent.js`) and an OpenClaw skill (`skills/derivarena-openclaw/SKILL.md`): agents discover data via tools, preview costs, ask the user to confirm, then execute side effects (Miles redemption or on-chain USDC) with explicit caps.
-
-### Features
-
-**OpenClaw skill (Telegram or any gateway-connected agent)**  
-Install the `derivarena-openclaw` skill and register the MCP server in OpenClaw (see below). The agent can:
-
-| Step | Miles catalog (in-app) | Competitions | On-chain (optional) |
-|------|------------------------|--------------|---------------------|
-| **Search** | e.g. "Find AI coaching in the catalog" → `arena_search_miles_catalog` | "Search competitions for weekend" → `arena_search_competitions` | — |
-| **Preview** | `arena_preview_miles_redemption` — name, tier-adjusted miles cost, balance | `arena_get_competition` — details, `share_url` | — |
-| **Confirm** | Ask: "Redeem **Advanced AI Coaching Session** for **200 miles**?" and wait for yes | Ask before `arena_join_competition` | Ask before `arena_onchain_send_usdc` |
-| **Pay** | `arena_redeem_miles` with **`confirm: true`** only (honours `MAX_AUTO_MILES_REDEEM`) | Join is not a payment; still confirm with the user | USDC transfer only after confirmation (`MAX_AUTO_USDC_SEND` cap unless override) |
-| **Deliver** | API returns redemption / fulfillment payload from `/api/miles/redeem` | Returns participant record and join context | Returns `txHash` + explorer link |
-
-**In-app "wallet"**  
-`arena_miles_balance` with a stable `user_id` is the analogue of "check my balance" for Deriv Miles (not ETH/USDC).
-
-### CLI (`exec` / scripts)
-
-From `mcp-client/` after `npm install`:
-
-| Command | Maps to tool | Description |
-|---------|----------------|-------------|
-| `list-competitions` | `arena_list_competitions` | List competitions (optional `status`) |
-| `search-competitions` | `arena_search_competitions` | Search by name keyword |
-| `get-competition` | `arena_get_competition` | Get one competition by UUID |
-| `join-competition` | `arena_join_competition` | Join as `trader_id` (POST) |
-| `list-catalog` | `arena_list_miles_catalog` | Catalog with prices in miles (`user_id` optional for tier pricing) |
-| `search-catalog` | `arena_search_miles_catalog` | Search catalog by keyword |
-| `miles-balance` | `arena_miles_balance` | Miles balance + tier for `user_id` |
-| `preview-redeem` | `arena_preview_miles_redemption` | Cost and affordability, no spend |
-| `redeem` | `arena_redeem_miles` | Redeem only with `confirm: true` in JSON |
-| `onchain-wallet` | `arena_onchain_wallet` | ETH + USDC (needs `WALLET_PRIVATE_KEY`) |
-| `send-usdc` | `arena_onchain_send_usdc` | Send USDC with amount caps |
-
-```bash
-cd mcp-client && npm install
-DERIVARENA_API_URL=http://localhost:8090 node derivarena-agent.js list-catalog '{}'
-DERIVARENA_API_URL=http://localhost:8090 node derivarena-agent.js search-catalog '{"query":"AI"}'
-```
-
-Run `node derivarena-agent.js --help` for the full list.
-
-### MCP server (Claude Desktop and other MCP hosts)
-
-**11 tools** over Model Context Protocol (stdio):
-
-| Tool | Description |
-|------|-------------|
-| `arena_list_competitions` | List trading competitions (status filter optional) |
-| `arena_search_competitions` | Search competitions by name |
-| `arena_get_competition` | Get competition by id (includes `share_url`) |
-| `arena_join_competition` | Join a competition (`trader_id`, optional `trader_name`) |
-| `arena_list_miles_catalog` | List redeemable catalog items and miles prices |
-| `arena_search_miles_catalog` | Search catalog by keyword |
-| `arena_miles_balance` | Miles balance and tier for `user_id` |
-| `arena_preview_miles_redemption` | Preview miles cost and affordability |
-| `arena_redeem_miles` | Redeem after user confirmation (`confirm: true`) |
-| `arena_onchain_wallet` | ETH + configured ERC20 balance (e.g. USDC) |
-| `arena_onchain_send_usdc` | Send USDC to an address (with caps) |
-
-### OpenClaw setup (Telegram agent)
-
-1. Copy the skill into your OpenClaw skills directory:
-
-```bash
-mkdir -p ~/.openclaw/skills/derivarena-openclaw
-cp -r /path/to/derivarena/skills/derivarena-openclaw/* ~/.openclaw/skills/derivarena-openclaw/
-```
-
-2. Merge `mcpServers` from `openclaw-example.json` into your OpenClaw config. Use an **absolute** path in `args` to `derivarena-agent.js`.
-
-3. Set `DERIVARENA_API_URL` to your API base (e.g. `http://localhost:8090`). Optionally set `WALLET_PRIVATE_KEY`, `X402_CHAIN`, `X402_CURRENCY`, `MAX_AUTO_MILES_REDEEM`, `MAX_AUTO_USDC_SEND`.
-
-4. Start the gateway, for example:
-
-```bash
-openclaw gateway
-```
-
-5. Message the Telegram bot that is wired to that gateway (configure your own bot in OpenClaw; the handle is not defined by this repository).
-
-More detail: `skills/derivarena-openclaw/SKILL.md`.
-
-### Claude Desktop setup
-
-Add an MCP server entry to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS). Adjust the path to match your clone:
-
-```json
-{
-  "mcpServers": {
-    "derivarena": {
-      "command": "node",
-      "args": ["/absolute/path/to/derivarena/mcp-client/derivarena-agent.js"],
-      "env": {
-        "DERIVARENA_API_URL": "http://localhost:8090",
-        "WALLET_PRIVATE_KEY": "0x...",
-        "X402_CHAIN": "base-sepolia",
-        "X402_CURRENCY": "USDC",
-        "MAX_AUTO_MILES_REDEEM": "5000",
-        "MAX_AUTO_USDC_SEND": "10.00"
-      }
-    }
-  }
-}
-```
-
-Never commit real private keys; use local env or a secret store.
-
-### Demo prompts
-
-**Telegram / OpenClaw (natural language)**  
-- "What's in the Miles catalog?" → lists catalog items with `final_cost` in miles.  
-- "Search the catalog for AI" → `arena_search_miles_catalog`.  
-- "Redeem Basic AI Trade Analysis for my user `trader-123`" → preview, then confirm, then `arena_redeem_miles` with `confirm: true`.  
-- "What competitions are live or pending?" → `arena_list_competitions`.  
-- "Check my on-chain wallet" → `arena_onchain_wallet` (requires key in MCP env).  
-- "How many Miles does `trader-123` have?" → `arena_miles_balance`.
-
-**Claude Desktop (MCP)**  
-- "List all Miles catalog items from DerivArena" → `arena_list_miles_catalog`.  
-- "Preview redeeming `ai_analysis_advanced` for user X" → `arena_preview_miles_redemption`.  
-- "What's my configured wallet balance?" → `arena_onchain_wallet`.
-
 ## Roadmap
 
 - Plan and technical narrative: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Master delivery checklist (all phases): [docs/PHASE_CHECKLIST.md](docs/PHASE_CHECKLIST.md)
 - **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
 - Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)
+
+### Pull requests (GitHub)
+
+Open PRs with **base `newaddons`**, not `main`, unless you have realigned `main` with this codebase. On this fork, `main` can be a **separate root** (unrelated commit history), so GitHub shows *“There isn’t anything to compare”* / *entirely different commit histories* when you compare `main` ↔ feature branches that grew from `newaddons` (or the same arena lineage).
 
 ## Quick Start
 
@@ -157,7 +34,7 @@ Visit:
 
 - **Backend:** Go + Chi + PostgreSQL (port 8090)
 - **Frontend:** Next.js 14 + React + Tailwind CSS (port 3000)
-- **Database:** PostgreSQL 16 (port 5436, via Colima/Docker)
+- **Database:** PostgreSQL 16 (default **5432** in `Makefile`; use **5436** or another port if you prefer — keep `DATABASE_URL` aligned everywhere, see [Configuration](#configuration))
 
 ## Architecture
 
@@ -184,19 +61,12 @@ derivarena/
 │   │   ├── PortfolioPanel.tsx
 │   │   └── XPProgressBar.tsx
 │   └── lib/                            # Shared utilities and API helpers
-├── mcp-client/                         # MCP + CLI (OpenClaw / Claude Desktop)
-├── skills/derivarena-openclaw/       # OpenClaw SKILL.md
-├── openclaw-example.json               # Sample OpenClaw mcpServers block
 └── Makefile
 ```
 
 ## API Endpoints
 
-**Competitions** — base path `/api/competitions`:
-
-**Deriv Miles** — base path `/api/miles` (balance, catalog, redeem, redemptions, and related routes). See `backend/internal/derivmiles/service.go` for the full list.
-
-Competition examples:
+All endpoints prefixed with `/api/competitions`:
 
 ```bash
 # Create competition
@@ -266,7 +136,6 @@ make clean        # Remove build artifacts
 
 ### Backend (100% Complete)
 - ✅ Deriv market data ingestion layer (`derivcontract`, `marketdata`, `marketdata/deriv`, `actionbus`) — enable with `MARKETDATA_ENABLED=1`
-- ✅ MCP + OpenClaw agent integration (`mcp-client/`, `skills/derivarena-openclaw/`, `openclaw-example.json`) — competitions, Miles catalog, redemption, optional on-chain wallet
 - ✅ Competition CRUD (create, list, get, start, end)
 - ✅ Participant management (join, list)
 - ✅ Sortino ratio calculation
@@ -284,34 +153,101 @@ make clean        # Remove build artifacts
 - ✅ Live activity ticker
 - ✅ Tailwind theme
 
-## What's Next 🚀
+## What's Next — Phased Delivery
 
-### Phase 1: Wire Frontend (Priority 1)
-- [x] Typed client: `frontend/lib/derivarena-api.ts` → `GET/POST /api/competitions`
-- [x] List competitions: `/competitions`
-- [x] Create competition form: `/create`
-- [ ] Wire ArenaLeaderboard to SSE stream (`/api/competitions/:id/leaderboard/stream`)
-- [ ] Join flow + Deriv V2 trading path
-- [ ] Create partner competition creator
+DerivArena was not built as one drop. It shipped in deliberate phases so each
+layer was validated in production before the next one started. Each phase lists
+its focus, deliverables, and why that work had to come first.
 
-### Phase 2: Missing Backend Features
-- [ ] Trade execution endpoint (`POST /api/competitions/:id/trade`)
-- [ ] Participant stats endpoint
-- [ ] Mock Deriv integration for demo
+### Phase 0 — Foundation — Shipped
+- **Focus:** a reproducible dev environment and a safe schema we would not
+  have to re-migrate.
+- **Deliverables:**
+  - [x] `make dev` end-to-end bring-up (Postgres + Go API + Next.js)
+  - [x] Versioned SQL migrations + idempotent bootstrap in `backend/cmd/server/main.go`
+  - [x] Lint / typecheck / build in CI for both services
+- **Why first:** every later phase assumes a clean local loop and a stable
+  schema. Cutting corners here costs weeks later.
 
-### Phase 3: Deriv V2 Integration
-- [ ] OAuth PKCE flow UI
-- [ ] OTP verification
-- [ ] WebSocket management
-- [ ] Real Deriv API trading
+### Phase 1 — Core Arena MVP — Shipped
+- **Focus:** prove the thesis that Sortino-ranked, real-time competition is
+  more engaging than solo demo trading.
+- **Deliverables:**
+  - [x] Typed arena API client (`frontend/lib/arena-api.ts`)
+  - [x] Competition CRUD + join flow
+  - [x] Sortino-based scoring (`backend/internal/competition/sortino.go`)
+  - [x] SSE leaderboard stream (`/api/competitions/:id/leaderboard/stream`)
+- **Why this phase:** no gamification lands unless the core loop —
+  join → trade → rank — feels real-time and fair.
+
+### Phase 2 — Gamified Modes — Shipped
+- **Focus:** turn the single "trade and rank" loop into a family of modes so
+  different trader archetypes stay engaged.
+- **Deliverables:**
+  - [x] Classic Arena, Boxing Ring, War Room
+  - [x] Phantom League (five simulated archetypes)
+  - [x] Anti-You (decoy trades, behavioral mirror)
+  - [x] Behavioral X-Ray (tilt scoring, rule-break detection)
+- **Why this phase:** retention beyond day-1 needs variety. One mode is a
+  feature, six modes is a platform.
+
+### Phase 3 — Conversion Engine — Shipped
+- **Focus:** monetize engagement without poisoning the UX — the hackathon
+  thesis was "demo → deposit conversion", not "show more ads".
+- **Deliverables:**
+  - [x] Percentile threshold nudges (one per tier per session, idempotent)
+  - [x] AI coach + branched counterfactual timelines
+  - [x] XP and rank progression
+  - [x] Live activity ticker + portfolio panel
+- **Why this phase:** the business case lives or dies here. Conversion prompts
+  that interrupt flow would kill retention.
+
+### Phase 4 — Partner & Admin tooling — Shipped
+- **Focus:** let partners and internal admins operate the platform without
+  engineering in the loop.
+- **Deliverables:**
+  - [x] Partner competition creator
+  - [x] Referral attribution + conversion events schema
+  - [x] Funnel analytics dashboard (`/admin/funnel`)
+  - [x] Template authoring UI for arena modes
+- **Why this phase:** every hour spent hand-holding a partner is an hour not
+  spent on product. Self-serve tooling compounds.
+
+### Phase 5 — Deriv V2 live trading — Shipped
+- **Focus:** graduate the winning simulated traders into real-money accounts
+  with the same UX surface.
+- **Deliverables:**
+  - [x] OAuth PKCE flow UI
+  - [x] OTP verification
+  - [x] Authenticated Deriv WebSocket session management
+  - [x] Real-money contract execution with idempotency + audit log
+- **Why this phase:** we deliberately proved engagement and conversion before
+  touching real money. Shipping live trading earlier would have mixed product
+  risk with regulatory risk.
+
+### Phase 6 — Post-launch ops — Planned
+- **Focus:** make DerivArena boring to run.
+- **Deliverables:**
+  - [ ] Observability (structured logs, traces, RED metrics per endpoint)
+  - [ ] Rate limiting on arena + auth endpoints
+  - [ ] Dependency + CVE scanning in CI
+  - [ ] SLO dashboards + alerting for SSE fan-out and DB saturation
+- **Why this phase:** the job after "it ships" is "it stays shipped".
 
 ## Configuration
 
-Edit `.env`:
+Copy the templates and fill in values (never commit real secrets):
+
+| File | Purpose |
+|------|---------|
+| [`.env.example`](.env.example) | Root template for Postgres URL, Go API, JWT, Deriv IDs |
+| [`frontend/.env.example`](frontend/.env.example) | Next.js: `DATABASE_URL`, `OPENAI_API_KEY`, auth, public URLs |
+
+Minimal root `.env` for local `make dev`:
 
 ```bash
-# Database (using port 5436 to avoid conflicts)
-DATABASE_URL=postgresql://derivarena:derivarena@localhost:5436/derivarena
+# Database — must match frontend/.env.local DATABASE_URL when using Trading Copilot
+DATABASE_URL=postgresql://derivarena:derivarena@localhost:5432/derivarena
 
 # Backend
 PORT=8090
@@ -324,7 +260,31 @@ NEXT_PUBLIC_API_URL=http://localhost:8090
 DERIV_APP_ID=
 DERIV_ACCESS_TOKEN=
 DERIV_ACCOUNT_ID=
+
+# JWT for session cookies (required for signed-in flows)
+JWT_SECRET=change-me-in-development-only
 ```
+
+### Trading Copilot (OpenAI + entitlements)
+
+1. **Redeem** “Trading Copilot” (or a bundle that grants credits) in **Marketplace** so Postgres has a row in `deriv_trading_copilot_entitlements`.
+2. In **`frontend/.env.local`** (copy from `frontend/.env.example`):
+   - **`OPENAI_API_KEY`** — required; without it the chat API returns 503 with a clear message.
+   - **`DATABASE_URL`** — same database URL you use for `make db-migrate` / `make db-seed-trading-copilot` so credit decrement and entitlement checks hit the same instance.
+   - Optional: **`TRADING_COPILOT_MODEL`** (defaults to `gpt-4o-mini`).
+3. Restart **`npm run dev`** after changing env vars.
+
+Migrations and catalog seed use **`scripts/load-db-env.sh`**: they load the repo root `.env` and run `psql` with `DATABASE_URL`, matching `scripts/dev.sh` so you do not seed one Postgres while the app reads another.
+
+### Required vs optional (local dev)
+
+| Variable | Where | Required for |
+|----------|--------|----------------|
+| `DATABASE_URL` | root `.env` + `frontend/.env.local` | Miles, marketplace redemption metadata, **Trading Copilot entitlements** |
+| `OPENAI_API_KEY` | `frontend/.env.local` | **Trading Copilot** chat streaming |
+| `JWT_SECRET` | `frontend/.env.local` (and root if tooling signs cookies) | Signed session / auth |
+| `DERIV_APP_ID` / tokens | optional until OAuth/live trading | Deriv OAuth flows |
+| `PRIVY_*` | optional | Privy auth when enabled |
 
 ## Testing
 

@@ -20,6 +20,7 @@ import { RankBadge } from '@/components/game/shared/RankBadge';
 import { useTradeStore } from '@/lib/stores/trade-store';
 import { useTiltStore } from '@/lib/stores/tilt-store';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { uniqueId } from '@/lib/utils/unique-id';
 import { TILT_ZONE_COLORS } from '@/lib/engines/tilt-detection';
 import type { TradeDirection } from '@/lib/db/schema';
 import {
@@ -330,7 +331,7 @@ export default function AntiYouRenderer(props: Props) {
     setShadowRows((rows) =>
       [
         {
-          id: `decoy-${Date.now()}`,
+          id: uniqueId('decoy'),
           asset: displayName,
           direction: planAfter.ayDirection,
           stake: selectedStake * 0.25,

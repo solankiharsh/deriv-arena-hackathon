@@ -25,7 +25,7 @@ export async function GET() {
     FROM arena_users u
     LEFT JOIN game_templates t ON t.created_by = u.id
     LEFT JOIN game_instances gi ON gi.template_id = t.id
-    LEFT JOIN conversion_events ce ON ce.partner_id = u.id
+    LEFT JOIN arena_conversion_events ce ON ce.partner_id = u.id
     WHERE u.role = 'partner'
     GROUP BY u.id, u.display_name
     ORDER BY total_conversions DESC

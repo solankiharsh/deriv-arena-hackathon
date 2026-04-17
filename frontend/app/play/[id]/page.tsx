@@ -12,6 +12,7 @@ import { arenaApi } from '@/lib/arena-api';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useTradeStore } from '@/lib/stores/trade-store';
 import { useArenaAuth } from '@/store/arenaAuthStore';
+import { useAuthNudge } from '@/lib/stores/auth-nudge-store';
 import type { GameInstance, InstancePlayer } from '@/lib/arena-types';
 import { GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS, type GameMode } from '@/lib/arena-types';
 import GradientText from '@/components/reactbits/GradientText';
@@ -28,6 +29,10 @@ import {
   interpolateMessage,
   type ConversionThreshold,
 } from '@/lib/conversion-thresholds';
+import {
+  deriveBalance,
+  SIMULATED_STARTING_BALANCE,
+} from '@/lib/trade-settlement';
 import { sfx } from '@/lib/sounds';
 import { useSettingsStore } from '@/lib/stores/settings-store';
 import ClassicArenaRenderer from '@/components/game/renderers/ClassicArenaRenderer';
@@ -52,7 +57,12 @@ function ScoreBar({
   const balance = useAuthStore((s) => s.balance);
   const sessionPnl = useTradeStore((s) => s.sessionPnl);
   const isRealTradeMode = useTradeStore((s) => s.isRealTradeMode);
-  const displayBalance = isRealTradeMode ? balance : balance + sessionPnl;
+  const displayBalance = isRealTradeMode
+    ? balance
+    : deriveBalance({
+        baseBalance: SIMULATED_STARTING_BALANCE,
+        cumulativePnl: sessionPnl,
+      });
 
   return (
     <div className="bg-card border border-border rounded-card p-3 flex items-center gap-4 flex-wrap">
@@ -237,6 +247,13 @@ export default function PlayPage() {
   }, [instance?.status, currentPercentile]);
 
   const handleJoin = async () => {
+    if (!user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[auth-nudge] blocked handleJoin', { instanceId });
+      }
+      useAuthNudge.getState().nudge();
+      return;
+    }
     try {
       sfx.prime();
       await arenaApi.instances.join(instanceId);
@@ -248,6 +265,13 @@ export default function PlayPage() {
   };
 
   const handleStart = async () => {
+    if (!user) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[auth-nudge] blocked handleStart', { instanceId });
+      }
+      useAuthNudge.getState().nudge();
+      return;
+    }
     try {
       sfx.prime();
       await arenaApi.instances.start(instanceId);

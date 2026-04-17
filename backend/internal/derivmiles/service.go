@@ -255,7 +255,7 @@ func (s *Service) handleRedeem(w http.ResponseWriter, r *http.Request) {
 	if req.Quantity <= 0 {
 		req.Quantity = 1
 	}
-	
+
 	redeemReq := RedeemRequest{
 		ItemID:   req.ItemID,
 		Quantity: req.Quantity,

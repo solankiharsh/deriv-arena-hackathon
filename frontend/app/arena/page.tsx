@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2, Trophy, Users, Clock, ArrowRight, Loader2,
   Swords, BarChart3, Zap, Plus, Activity,
-  Crosshair, TrendingUp, Map, MessageSquare,
+  Crosshair, TrendingUp, Map,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
@@ -37,15 +37,10 @@ const MapTab = dynamic(() => import('@/components/arena/tabs/MapTab'), {
   ssr: false,
   loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
 });
-const DiscussionsTab = dynamic(() => import('@/components/arena/tabs/DiscussionsTab'), {
-  ssr: false,
-  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
-});
-
 const GOLD = '#E8B45E';
 const BG = '#07090F';
 
-type ArenaTab = 'games' | 'live' | 'leaderboard' | 'command_center' | 'predictions' | 'map' | 'discussions';
+type ArenaTab = 'games' | 'live' | 'leaderboard' | 'command_center' | 'predictions' | 'map';
 
 function LiveInstanceCard({ instance }: { instance: GameInstance & { template_name?: string; game_mode?: string } }) {
   const router = useRouter();
@@ -298,7 +293,6 @@ export default function ArenaPage() {
     { value: 'command_center', label: 'Command', icon: Crosshair, group: 'intel' },
     { value: 'predictions', label: 'Predictions', icon: TrendingUp, group: 'intel' },
     { value: 'map', label: 'Map', icon: Map, group: 'intel' },
-    { value: 'discussions', label: 'Discuss', icon: MessageSquare, group: 'intel' },
   ];
 
   return (
@@ -408,11 +402,6 @@ export default function ArenaPage() {
             {tab === 'map' && (
               <motion.div key="map" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <MapTab />
-              </motion.div>
-            )}
-            {tab === 'discussions' && (
-              <motion.div key="discussions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <DiscussionsTab />
               </motion.div>
             )}
           </AnimatePresence>

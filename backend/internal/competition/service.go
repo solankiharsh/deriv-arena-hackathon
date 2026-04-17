@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -80,9 +82,9 @@ func (s *Service) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate share URL pointing at the Next.js join page
-	comp.ShareURL = fmt.Sprintf("%s/join/%s", strings.TrimRight(s.shareBaseURL, "/"), comp.ID.String())
-	
+	// Generate share URL pointing at the Next.js join page with referral attribution.
+	comp.ShareURL = buildCompetitionShareURL(s.shareBaseURL, comp.ID.String(), comp.PartnerID, comp.AppID)
+
 	// Update with share URL
 	updateQuery := "UPDATE competitions SET share_url = $1 WHERE id = $2"
 	_, err = s.store.pool.Exec(r.Context(), updateQuery, comp.ShareURL, comp.ID)
@@ -217,6 +219,55 @@ func (s *Service) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(participant)
+}
+
+// buildCompetitionShareURL produces an invite link that *looks* like a
+// partner-tracking URL (it carries the same `a`, `o`, `c`, `link_id`,
+// `custom1` query params affiliates recognise) but resolves back into the
+// DerivArena app itself. The click lands on `${baseURL}/click`, where the
+// frontend ReferralCapture reads `custom1`, persists `partner_id` as the
+// referrer, and forwards to the competition join page.
+//
+// Operators who genuinely want clicks to flow through the external Deriv
+// tracker (e.g. when the destination is outside the app) can override the
+// base with the `PARTNER_TRACKING_URL` env var.
+func buildCompetitionShareURL(baseURL, competitionID, partnerID, appID string) string {
+	trimmedBase := strings.TrimRight(baseURL, "/")
+	destinationPath := fmt.Sprintf("%s/join/%s", trimmedBase, competitionID)
+	affiliateID := strings.TrimSpace(appID)
+	if affiliateID == "" {
+		affiliateID = strings.TrimSpace(partnerID)
+	}
+	if affiliateID == "" {
+		return destinationPath
+	}
+	trackingPartnerID := strings.TrimSpace(partnerID)
+	if trackingPartnerID == "" {
+		trackingPartnerID = affiliateID
+	}
+
+	custom1 := url.Values{}
+	custom1.Set("v", "1")
+	custom1.Set("partner_id", trackingPartnerID)
+	custom1.Set("destination_path", destinationPath)
+	custom1.Set("source", "copy")
+
+	params := url.Values{}
+	params.Set("a", affiliateID)
+	params.Set("o", "1")
+	params.Set("c", getenvDefault("PARTNER_TRACKING_COMMISSION_PLAN_ID", "3"))
+	params.Set("link_id", getenvDefault("PARTNER_TRACKING_LINK_ID", "1"))
+	params.Set("custom1", custom1.Encode())
+
+	defaultTrackingBase := fmt.Sprintf("%s/click", trimmedBase)
+	return fmt.Sprintf("%s?%s", getenvDefault("PARTNER_TRACKING_URL", defaultTrackingBase), params.Encode())
+}
+
+func getenvDefault(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func (s *Service) handleListParticipants(w http.ResponseWriter, r *http.Request) {

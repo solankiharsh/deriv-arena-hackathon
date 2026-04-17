@@ -175,7 +175,7 @@ func (s *Store) EndCompetition(ctx context.Context, id uuid.UUID) error {
 				if entry.Rank <= 3 {
 					_ = s.milesEngine.ProcessCompetitionWin(ctx, entry.TraderID, id.String(), entry.Rank)
 				}
-				
+
 				if i >= 2 {
 					break
 				}
@@ -296,7 +296,7 @@ func (s *Store) RecordTrade(ctx context.Context, trade Trade) error {
 		if err := s.updateStats(ctx, trade.ParticipantID); err != nil {
 			return fmt.Errorf("update stats: %w", err)
 		}
-		
+
 		if trade.PnL.IsPositive() && s.milesEngine != nil {
 			participant, err := s.GetParticipant(ctx, trade.ParticipantID)
 			if err == nil && participant.TraderID != "" {
@@ -311,35 +311,52 @@ func (s *Store) RecordTrade(ctx context.Context, trade Trade) error {
 // updateStats recalculates statistics for a participant.
 func (s *Store) updateStats(ctx context.Context, participantID uuid.UUID) error {
 	query := `
-		WITH trade_stats AS (
-			SELECT
-				participant_id,
-				COUNT(*) as total_trades,
-				COUNT(*) FILTER (WHERE pnl > 0) as profitable_trades,
-				COALESCE(SUM(pnl), 0) as total_pnl
-			FROM competition_trades
-			WHERE participant_id = $1 AND pnl IS NOT NULL
-			GROUP BY participant_id
-		),
-		starting_balance AS (
-			SELECT c.starting_balance
-			FROM participants p
-			JOIN competitions c ON p.competition_id = c.id
-			WHERE p.id = $1
-		)
-		UPDATE competition_stats cs
-		SET
-			total_trades = COALESCE(ts.total_trades, 0),
-			profitable_trades = COALESCE(ts.profitable_trades, 0),
-			total_pnl = COALESCE(ts.total_pnl, 0),
-			current_balance = sb.starting_balance + COALESCE(ts.total_pnl, 0),
-			last_updated = NOW()
-		FROM trade_stats ts, starting_balance sb
-		WHERE cs.participant_id = $1
+		SELECT
+			COALESCE(COUNT(t.id), 0) AS total_trades,
+			COALESCE(COUNT(t.id) FILTER (WHERE t.pnl > 0), 0) AS profitable_trades,
+			COALESCE(SUM(t.pnl), 0) AS total_pnl,
+			c.starting_balance
+		FROM participants p
+		JOIN competitions c ON p.competition_id = c.id
+		LEFT JOIN competition_trades t
+			ON t.participant_id = p.id
+			AND t.pnl IS NOT NULL
+		WHERE p.id = $1
+		GROUP BY c.starting_balance
 	`
 
-	_, err := s.pool.Exec(ctx, query, participantID)
+	var totalTrades int
+	var profitableTrades int
+	var totalPnL decimal.Decimal
+	var startingBalance decimal.Decimal
+
+	err := s.pool.QueryRow(ctx, query, participantID).Scan(
+		&totalTrades,
+		&profitableTrades,
+		&totalPnL,
+		&startingBalance,
+	)
+	if err != nil {
+		return err
+	}
+
+	currentBalance := calculateCurrentBalance(startingBalance, totalPnL)
+
+	_, err = s.pool.Exec(ctx, `
+		UPDATE competition_stats
+		SET
+			total_trades = $2,
+			profitable_trades = $3,
+			total_pnl = $4,
+			current_balance = $5,
+			last_updated = NOW()
+		WHERE participant_id = $1
+	`, participantID, totalTrades, profitableTrades, totalPnL, currentBalance)
 	return err
+}
+
+func calculateCurrentBalance(startingBalance, totalPnL decimal.Decimal) decimal.Decimal {
+	return startingBalance.Add(totalPnL)
 }
 
 // GetLeaderboard retrieves the competition leaderboard sorted by Sortino ratio.
@@ -381,7 +398,7 @@ func (s *Store) GetLeaderboard(ctx context.Context, competitionID uuid.UUID) ([]
 // RecordConversionEvent records a conversion nudge event.
 func (s *Store) RecordConversionEvent(ctx context.Context, event ConversionEvent) error {
 	query := `
-		INSERT INTO competition_conversion_events (id, participant_id, trigger_type, nudge_shown, clicked, converted, created_at)
+		INSERT INTO conversion_events (id, participant_id, trigger_type, nudge_shown, clicked, converted, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 

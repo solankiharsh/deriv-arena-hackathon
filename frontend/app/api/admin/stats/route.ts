@@ -23,12 +23,12 @@ export async function GET() {
       (SELECT COUNT(*) FROM game_templates) as total_templates,
       (SELECT COUNT(*) FROM game_instances) as total_instances,
       (SELECT COUNT(*) FROM game_instances WHERE status = 'live') as active_instances,
-      (SELECT COUNT(*) FROM conversion_events) as total_conversions
+      (SELECT COUNT(*) FROM arena_conversion_events) as total_conversions
   `);
 
   const topPartner = await queryOne<{ display_name: string; conversions: string }>(`
     SELECT u.display_name, COUNT(ce.id) as conversions
-    FROM conversion_events ce
+    FROM arena_conversion_events ce
     JOIN arena_users u ON u.id = ce.partner_id
     WHERE ce.partner_id IS NOT NULL
     GROUP BY u.id, u.display_name

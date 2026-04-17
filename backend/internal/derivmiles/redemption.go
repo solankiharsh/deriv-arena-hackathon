@@ -130,15 +130,30 @@ func (r *RedemptionProcessor) fulfillAIAnalysis(ctx context.Context, userID stri
 func (r *RedemptionProcessor) fulfillPremiumFeature(ctx context.Context, userID string, item *CatalogItem, req RedeemRequest) (map[string]interface{}, *time.Time, error) {
 	featureName, _ := item.Metadata["feature"].(string)
 	durationDays, _ := item.Metadata["duration_days"].(float64)
-	
+	if durationDays <= 0 {
+		durationDays = 30
+	}
+
 	expiresAt := time.Now().Add(time.Duration(durationDays) * 24 * time.Hour)
-	
+
 	fulfillmentData := map[string]interface{}{
 		"feature":    featureName,
 		"activated":  true,
 		"expires_at": expiresAt.Format(time.RFC3339),
 	}
-	
+
+	if featureName == "trading_copilot" {
+		msgCredits := 500
+		if v, ok := item.Metadata["message_credits"].(float64); ok && int(v) > 0 {
+			msgCredits = int(v)
+		}
+		if err := r.store.UpsertTradingCopilotEntitlement(ctx, userID, msgCredits, expiresAt); err != nil {
+			return nil, nil, err
+		}
+		fulfillmentData["message_credits_added"] = msgCredits
+		fulfillmentData["instructions"] = "Open Trading Copilot from the Marketplace or Miles area to use your credits."
+	}
+
 	return fulfillmentData, &expiresAt, nil
 }
 

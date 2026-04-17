@@ -18,11 +18,9 @@ frontend/tsconfig.tsbuildinfo
 /frontend/out/
 /frontend/.turbo/
 
-/mcp-client/node_modules/
-
-# Python
-.venv/
-
 # IDE
 .idea/
 .vscode/
+
+# Local MCP client installs (do not commit dependencies)
+mcp-client/node_modules/

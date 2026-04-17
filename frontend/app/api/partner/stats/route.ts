@@ -29,7 +29,7 @@ export async function GET() {
            JOIN game_instances gi ON gi.id = ip.instance_id
            JOIN game_templates t ON t.id = gi.template_id
            WHERE t.created_by = $1) as total_players_reached,
-        (SELECT COUNT(*) FROM conversion_events WHERE partner_id = $1) as total_conversions
+        (SELECT COUNT(*) FROM arena_conversion_events WHERE partner_id = $1) as total_conversions
     `, [partnerId]);
 
     const templatesCreated = parseInt(counts?.templates_created || '0', 10);
@@ -42,7 +42,7 @@ export async function GET() {
 
     const dailyConversions = await query<{ day: string; count: string }>(`
       SELECT DATE(created_at) as day, COUNT(*) as count
-      FROM conversion_events
+      FROM arena_conversion_events
       WHERE partner_id = $1 AND created_at > now() - INTERVAL '30 days'
       GROUP BY DATE(created_at)
       ORDER BY day
@@ -64,7 +64,7 @@ export async function GET() {
         (SELECT COUNT(DISTINCT ip.user_id) FROM instance_players ip
            JOIN game_instances gi ON gi.id = ip.instance_id
            WHERE gi.template_id = t.id) as player_count,
-        (SELECT COUNT(*) FROM conversion_events WHERE template_id = t.id) as conversions
+        (SELECT COUNT(*) FROM arena_conversion_events WHERE template_id = t.id) as conversions
       FROM game_templates t
       WHERE t.created_by = $1
       ORDER BY conversions DESC
@@ -72,7 +72,7 @@ export async function GET() {
 
     const funnel = await query<{ event_type: string; count: string }>(`
       SELECT event_type, COUNT(*) as count
-      FROM conversion_events
+      FROM arena_conversion_events
       WHERE partner_id = $1
       GROUP BY event_type
       ORDER BY
@@ -137,6 +137,24 @@ export async function GET() {
       },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isMissingTable = msg.includes('does not exist');
+    if (isMissingTable) {
+      console.warn('Partner stats: table missing, returning empty stats:', msg);
+      return NextResponse.json({
+        summary: {
+          templates_created: 0,
+          total_instances: 0,
+          total_players_reached: 0,
+          total_conversions: 0,
+          conversion_rate: 0,
+        },
+        daily_conversions: [],
+        template_performance: [],
+        funnel: [],
+        referrals: { total_clicks: 0, unique_players: 0, by_source: [] },
+      });
+    }
     console.error('Partner stats query failed:', err);
     return NextResponse.json(
       { error: 'Failed to load partner statistics' },

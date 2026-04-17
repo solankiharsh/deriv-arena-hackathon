@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { queryOne } from '@/lib/db/postgres';
 import type { ArenaUser } from '@/lib/arena-types';
+import { awardDailyLogin } from '@/lib/miles/xp';
 
 // Synthetic user map for demo sessions and no-DB environments.
 // Matches the accounts seeded by /api/auth/demo and the migration SEED_SQL.
@@ -54,6 +55,18 @@ export async function GET() {
       // Return synthetic user so the session stays alive instead of logging out.
       console.warn(`[auth/me] User not in DB uid=${session.uid}, returning synthetic`);
       return NextResponse.json({ user: syntheticUser(session) });
+    }
+
+    // Idempotent daily-login miles award. Never fail /me because of miles.
+    try {
+      const result = await awardDailyLogin(session.uid);
+      if (result.awarded) {
+        console.log(
+          `[auth/me] daily login awarded uid=${session.uid} xp=${result.xp} miles=${result.miles}`,
+        );
+      }
+    } catch (milesErr) {
+      console.error(`[auth/me] daily login award failed uid=${session.uid}:`, milesErr);
     }
 
     return NextResponse.json({ user });

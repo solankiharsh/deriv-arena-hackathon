@@ -26,6 +26,7 @@ import { RankBadge } from '@/components/game/shared/RankBadge';
 import { useTradeStore } from '@/lib/stores/trade-store';
 import { useTiltStore } from '@/lib/stores/tilt-store';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { uniqueId } from '@/lib/utils/unique-id';
 import { TILT_ZONE_COLORS } from '@/lib/engines/tilt-detection';
 import {
   placeSimulatedTrade,
@@ -367,13 +368,19 @@ export default function PhantomLeagueRenderer(props: Props) {
             }
             setShadowTrades((st) => {
               const entry: ShadowTrade = {
-                id: `st-${Date.now()}-${p.id}`,
+                id: uniqueId(`st-${p.id}`),
                 phantomName: p.revealed ? p.codename : '???',
                 asset: p.upcomingTrade.asset,
                 direction: p.upcomingTrade.direction,
                 profit: tradePnlDelta,
                 timestamp: Date.now(),
               };
+              if (st.some((existing) => existing.id === entry.id)) {
+                if (process.env.NODE_ENV !== 'production') {
+                  console.debug('[PhantomLeague] dropped duplicate shadow-trade id', entry.id);
+                }
+                return st;
+              }
               return [entry, ...st].slice(0, 5);
             });
             spawnOrb(p.id, p.revealed ? p.codename : '???', tradePnlDelta);
@@ -722,7 +729,7 @@ export default function PhantomLeagueRenderer(props: Props) {
 
       <div className="p-3 flex-1 overflow-y-auto space-y-3">
         <div
-          className="rounded-xl p-3 border"
+          className="rounded-xl p-3 border shrink-0"
           style={{ borderColor: `${SHADOW_PURPLE}20`, background: `${SHADOW_PURPLE}06` }}
         >
           <div className="text-[9px] font-mono uppercase tracking-wider text-text-muted mb-1">
@@ -739,7 +746,7 @@ export default function PhantomLeagueRenderer(props: Props) {
           </div>
         </div>
 
-        <div>
+        <div className="shrink-0">
           <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <Sparkles className="w-3 h-3" style={{ color: SHADOW_PURPLE }} />
             Profit Orbs
@@ -813,11 +820,11 @@ export default function PhantomLeagueRenderer(props: Props) {
           )}
         </div>
 
-        <div>
+        <div className="shrink-0">
           <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-2">
             Recent phantom trades
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 max-h-[180px] overflow-y-auto pr-1">
             {shadowTrades.length === 0 && (
               <div className="text-[9px] text-text-muted/50 font-mono">No trades yet</div>
             )}

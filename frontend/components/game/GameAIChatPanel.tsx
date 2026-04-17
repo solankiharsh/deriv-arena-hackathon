@@ -7,6 +7,7 @@ import {
   TrendingUp, Brain, Target, LogOut, AlertTriangle, FileText,
 } from 'lucide-react';
 import { useTradeStore } from '@/lib/stores/trade-store';
+import { uniqueId } from '@/lib/utils/unique-id';
 
 interface ChatMessage {
   id: string;
@@ -45,13 +46,18 @@ export default function GameAIChatPanel({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const tradeState = useTradeStore();
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth',
+    });
   }, []);
 
   useEffect(() => {
@@ -106,13 +112,13 @@ export default function GameAIChatPanel({
     if (isLoading || !question.trim()) return;
 
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: uniqueId('user'),
       role: 'user',
       content: question.trim(),
       timestamp: Date.now(),
     };
 
-    const assistantId = `ai-${Date.now()}`;
+    const assistantId = uniqueId('ai');
     const assistantMsg: ChatMessage = {
       id: assistantId,
       role: 'assistant',
@@ -218,7 +224,10 @@ export default function GameAIChatPanel({
             </div>
 
             {/* Messages */}
-            <div className="max-h-[300px] overflow-y-auto px-3 space-y-2 scrollbar-thin">
+            <div
+              ref={messagesContainerRef}
+              className="max-h-[300px] overflow-y-auto px-3 space-y-2 scrollbar-thin"
+            >
               {messages.length === 0 && (
                 <div className="py-6 text-center text-text-muted text-xs">
                   Ask anything about your game...
@@ -253,7 +262,6 @@ export default function GameAIChatPanel({
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
