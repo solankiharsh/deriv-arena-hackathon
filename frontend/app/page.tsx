@@ -33,6 +33,7 @@ import BlurText from '@/components/reactbits/BlurText';
 import GradientText from '@/components/reactbits/GradientText';
 import DecryptedText from '@/components/reactbits/DecryptedText';
 import GlitchText from '@/components/reactbits/GlitchText';
+import { JourneyLoop } from '@/components/home/JourneyLoop';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 const RisingLines = dynamic(() => import('@/components/react-bits/rising-lines'), { ssr: false });
@@ -203,9 +204,10 @@ export default function Home() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 1.0, duration: 0.5 }}
                   >
-                    Gamified trading competitions on Deriv exotic contracts.
-                    Sortino-ranked leaderboards. AI coaching. Partner-branded competitions.
-                    Turning demo traders into depositors.
+                    Compete on Deriv exotic contracts, deploy AI agents that trade for you,
+                    earn <span className="text-accent-primary">Deriv Miles</span> for every
+                    smart move, spend them in the Marketplace, and graduate to real trading
+                    on Deriv — all in one loop.
                   </motion.p>
 
                   <motion.div
@@ -324,6 +326,59 @@ export default function Home() {
                   </AnimatedSection>
                 );
               })}
+            </div>
+
+            <div className="mt-10 sm:mt-14 mx-auto max-w-4xl">
+              <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+          </section>
+        </LazySection>
+
+        {/* ═══════════ THE FULL LOOP ═══════════ */}
+        <LazySection minHeight="640px">
+          <section className="container-colosseum pt-8 sm:pt-14 pb-8 sm:pb-14">
+            <AnimatedSection className="text-center mb-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-accent-primary/30 bg-accent-primary/5 mb-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse" />
+                <span className="text-[10px] font-mono uppercase tracking-widest text-accent-primary">
+                  The DerivArena Loop
+                </span>
+              </div>
+              <BlurText
+                text="One product, one loop, seven forces."
+                className="text-3xl md:text-5xl font-bold text-text-primary font-display tracking-tight !mb-3"
+                delay={70}
+                animateBy="words"
+              />
+              <p className="text-base text-text-muted max-w-2xl mx-auto">
+                DerivArena isn&apos;t a single feature &mdash; it&apos;s a closed loop that takes a
+                curious trader from first demo tick to real Deriv deposit and keeps them
+                coming back. Every pulse you see below is a real signal running through
+                the platform right now.
+              </p>
+            </AnimatedSection>
+
+            <AnimatedSection delay={0.1}>
+              <JourneyLoop />
+            </AnimatedSection>
+
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto text-[11px] font-mono">
+              {[
+                { label: 'Rails', value: 'Deriv API V2 · WS OTP' },
+                { label: 'Rewards', value: 'XP · Miles · Tiers' },
+                { label: 'Agents', value: 'MCP · OpenClaw · Telegram' },
+                { label: 'Conversion', value: 'Partner app_id tracked' },
+              ].map((chip) => (
+                <div
+                  key={chip.label}
+                  className="bg-white/[0.03] border border-white/[0.06] px-3 py-2 text-center"
+                >
+                  <div className="text-[9px] text-text-muted uppercase tracking-widest">
+                    {chip.label}
+                  </div>
+                  <div className="text-text-secondary mt-0.5 truncate">{chip.value}</div>
+                </div>
+              ))}
             </div>
 
             <div className="mt-10 sm:mt-14 mx-auto max-w-4xl">

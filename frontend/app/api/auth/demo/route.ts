@@ -54,9 +54,18 @@ const SYNTHETIC_USERS: Record<string, ArenaUser> = {
   },
 };
 
+function isDemoLoginEnabled(): boolean {
+  const flag = (process.env.DEMO_LOGIN_ENABLED ?? '').toLowerCase();
+  if (flag === '0' || flag === 'false' || flag === 'off') return false;
+
+  if (process.env.ALLOW_DEMO_LOGIN) return true;
+
+  return process.env.NODE_ENV !== 'production' || !!process.env.VERCEL_ENV;
+}
+
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_DEMO_LOGIN) {
-    console.warn('[auth/demo] Blocked: demo login disabled in production');
+  if (!isDemoLoginEnabled()) {
+    console.warn('[auth/demo] Blocked: demo login disabled (set DEMO_LOGIN_ENABLED=1 or ALLOW_DEMO_LOGIN=1 to enable)');
     return NextResponse.json({ error: 'Demo login disabled in production' }, { status: 403 });
   }
 

@@ -2,8 +2,72 @@
 
 import type { AnyDerivRequest, DerivBaseResponse } from "./types";
 
+/**
+ * Legacy `wss://ws.derivws.com/websockets/v3?app_id=` expects a numeric application ID.
+ * OAuth `client_id` values are often alphanumeric; those must not be used as `app_id`
+ * (they produce failed WebSocket handshakes). Optional override: NEXT_PUBLIC_DERIV_LEGACY_WS_APP_ID.
+ */
+function resolveLegacyV3AppId(appId: string): string {
+  const override = (process.env.NEXT_PUBLIC_DERIV_LEGACY_WS_APP_ID || "").trim();
+  if (override && /^\d+$/.test(override)) return override;
+  const trimmed = (appId || "").trim();
+  if (trimmed && /^\d+$/.test(trimmed)) return trimmed;
+  const pub = (process.env.NEXT_PUBLIC_DERIV_APP_ID || "").trim();
+  if (pub && /^\d+$/.test(pub)) return pub;
+  return "1089";
+}
+
+/**
+ * Ask the backend for a fresh, OTP-signed Deriv v2 WebSocket URL for the
+ * current user session. Returns `null` when the user isn't signed in or the
+ * Deriv OTP endpoint is unavailable — callers should fall back to legacy.
+ */
+async function fetchOtpWsUrl(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/auth/deriv-ws", { credentials: "same-origin" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { wsUrl?: string | null };
+    return typeof data.wsUrl === "string" && data.wsUrl ? data.wsUrl : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract only the host from a WebSocket URL. We never expose the full URL
+ * (which may include OTP tokens or query strings) to UI listeners.
+ */
+function safeHostFromUrl(url: string): string | null {
+  try {
+    return new URL(url).host || null;
+  } catch {
+    return null;
+  }
+}
+
 type MessageCallback = (response: Record<string, unknown>) => void;
 type SubscriptionCallback = (response: Record<string, unknown>) => void;
+
+/**
+ * Which Deriv WebSocket path the current connection is using.
+ *
+ * - `v2-otp`      : OTP-signed new v2 endpoint (`api.derivws.com/trading/v1/...`).
+ * - `v3-legacy`   : Fallback to the legacy `ws.derivws.com/websockets/v3?app_id=` endpoint.
+ * - `disconnected`: Not connected.
+ */
+export type DerivStreamSource = "v2-otp" | "v3-legacy" | "disconnected";
+
+export interface DerivStreamStatus {
+  connected: boolean;
+  source: DerivStreamSource;
+  /** Host portion of the active WS URL (never includes tokens / query params). */
+  host: string | null;
+  /** ISO timestamp of the last connection state change. */
+  changedAt: string;
+}
+
+type StatusListener = (status: DerivStreamStatus) => void;
 
 interface PendingRequest {
   resolve: (value: Record<string, unknown>) => void;
@@ -31,7 +95,11 @@ class DerivWebSocketManager {
   private isAuthorized = false;
   private authToken: string | null = null;
   private connectionListeners = new Set<(connected: boolean) => void>();
+  private statusListeners = new Set<StatusListener>();
   private messageQueue: Array<Record<string, unknown>> = [];
+  private currentSource: DerivStreamSource = "disconnected";
+  private currentHost: string | null = null;
+  private statusChangedAt: string = new Date(0).toISOString();
 
   private constructor() {}
 
@@ -42,6 +110,16 @@ class DerivWebSocketManager {
     return DerivWebSocketManager.instance;
   }
 
+  /**
+   * Connect to Deriv's trading WebSocket.
+   *
+   * Preference order (new API first, legacy only as fallback):
+   *   1. OTP-signed v2 URL from `/api/auth/deriv-ws` (authenticated Deriv session).
+   *   2. Legacy unauthenticated `wss://ws.derivws.com/websockets/v3?app_id=<numeric>`.
+   *
+   * Returns a fire-and-forget `void` to preserve backwards compatibility with
+   * existing call sites, but internally runs asynchronously.
+   */
   connect(appId: string): void {
     if (
       this.ws?.readyState === WebSocket.OPEN ||
@@ -49,26 +127,59 @@ class DerivWebSocketManager {
     ) {
       return;
     }
+    void this.connectInternal(appId);
+  }
 
-    const url = `${process.env.NEXT_PUBLIC_DERIV_WS_URL || "wss://ws.derivws.com/websockets/v3"}?app_id=${appId}`;
-    this.ws = new WebSocket(url);
+  private async connectInternal(appId: string): Promise<void> {
+    const legacyAppId = resolveLegacyV3AppId(appId);
+    const otpUrl = await fetchOtpWsUrl();
+    const useOtp = Boolean(otpUrl);
+    const url =
+      otpUrl ||
+      `${process.env.NEXT_PUBLIC_DERIV_WS_URL || "wss://ws.derivws.com/websockets/v3"}?app_id=${legacyAppId}`;
 
-    this.ws.onopen = () => {
+    // Track the active path + host for the status indicator. We extract host
+    // only (never the full URL) so OTP tokens never leak into listeners or UI.
+    const nextSource: DerivStreamSource = useOtp ? "v2-otp" : "v3-legacy";
+    this.currentHost = safeHostFromUrl(url);
+    this.currentSource = nextSource;
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(url);
+    } catch {
+      this.currentSource = "disconnected";
+      this.notifyConnectionListeners(false);
+      this.scheduleReconnect(appId);
+      return;
+    }
+    this.ws = socket;
+
+    socket.onopen = () => {
       this.reconnectAttempts = 0;
       this.startHeartbeat();
       this.notifyConnectionListeners(true);
-      // Re-authorize and flush queued messages
-      if (this.authToken) {
-        this.authorize(this.authToken).then(() => {
-          this.flushQueue();
-          this.resubscribeAll();
-        }).catch(() => {});
+
+      // OTP URLs are pre-authenticated by Deriv; `authorize` returns an
+      // `AlreadyAuthorized` error there, so skip it. Legacy connections still
+      // need an explicit authorize when we have a token.
+      if (useOtp) {
+        this.isAuthorized = true;
+        this.flushQueue();
+        this.resubscribeAll();
+      } else if (this.authToken) {
+        this.authorize(this.authToken)
+          .then(() => {
+            this.flushQueue();
+            this.resubscribeAll();
+          })
+          .catch(() => {});
       } else {
         this.flushQueue();
       }
     };
 
-    this.ws.onmessage = (event: MessageEvent) => {
+    socket.onmessage = (event: MessageEvent) => {
       let data: Record<string, unknown>;
       try {
         data = JSON.parse(event.data as string) as Record<string, unknown>;
@@ -78,14 +189,18 @@ class DerivWebSocketManager {
       this.handleMessage(data);
     };
 
-    this.ws.onclose = () => {
+    socket.onclose = () => {
       this.isAuthorized = false;
       this.stopHeartbeat();
+      this.currentSource = "disconnected";
+      this.currentHost = null;
       this.notifyConnectionListeners(false);
+      // Always reconnect via connect() so we re-attempt OTP first; a fresh OTP
+      // URL is fetched each time since the previous one has a short TTL.
       this.scheduleReconnect(appId);
     };
 
-    this.ws.onerror = () => {
+    socket.onerror = () => {
       // Error handling is done via onclose
     };
   }
@@ -215,6 +330,27 @@ class DerivWebSocketManager {
     return () => this.connectionListeners.delete(listener);
   }
 
+  /**
+   * Subscribe to stream status changes (connected + which API path is in use).
+   * Fires immediately with the current snapshot so UI doesn't flicker on mount.
+   */
+  onStatusChange(listener: StatusListener): () => void {
+    this.statusListeners.add(listener);
+    listener(this.getStatus());
+    return () => {
+      this.statusListeners.delete(listener);
+    };
+  }
+
+  getStatus(): DerivStreamStatus {
+    return {
+      connected: this.ws?.readyState === WebSocket.OPEN,
+      source: this.currentSource,
+      host: this.currentHost,
+      changedAt: this.statusChangedAt,
+    };
+  }
+
   get connected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
@@ -273,7 +409,10 @@ class DerivWebSocketManager {
   }
 
   private notifyConnectionListeners(connected: boolean): void {
+    this.statusChangedAt = new Date().toISOString();
     this.connectionListeners.forEach((l) => l(connected));
+    const snapshot = this.getStatus();
+    this.statusListeners.forEach((l) => l(snapshot));
   }
 
   disconnect(): void {

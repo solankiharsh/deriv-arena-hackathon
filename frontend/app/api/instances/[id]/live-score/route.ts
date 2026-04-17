@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne, execute } from '@/lib/db/postgres';
 import { getSession } from '@/lib/auth/session';
 import type { InstancePlayer } from '@/lib/arena-types';
+import { awardFirstGame, awardFirstTrade } from '@/lib/miles/xp';
 
 export async function POST(
   req: NextRequest,
@@ -22,6 +23,18 @@ export async function POST(
      WHERE instance_id = $5 AND user_id = $6`,
     [score ?? 0, pnl ?? 0, trades_count ?? 0, behavioral_score ?? 0, id, session.uid],
   );
+
+  // Starter Miles: first time we see any live-score activity counts as a
+  // "first game" for the user; first time trade count is at least 1 counts
+  // as a "first trade". Both helpers are idempotent per user.
+  try {
+    await awardFirstGame(session.uid);
+    if (Number.isFinite(trades_count) && Number(trades_count) > 0) {
+      await awardFirstTrade(session.uid, id);
+    }
+  } catch (err) {
+    console.warn(`[instances/live-score] starter awards failed user=${session.uid}:`, err);
+  }
 
   const allPlayers = await query<InstancePlayer>(
     'SELECT * FROM instance_players WHERE instance_id = $1 ORDER BY score DESC',

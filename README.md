@@ -4,12 +4,18 @@
 
 Converts demo traders into depositors through competitive Sortino-ranked leaderboards, AI coaching, and strategic conversion nudges.
 
-## Roadmap
+## Docs & roadmap
 
-- Plan and technical narrative: [docs/ROADMAP.md](docs/ROADMAP.md)
-- Master delivery checklist (all phases): [docs/PHASE_CHECKLIST.md](docs/PHASE_CHECKLIST.md)
-- **Deriv V2 integration (agents / implementers):** [docs/DERIV_V2_API_IMPLEMENTATION.md](docs/DERIV_V2_API_IMPLEMENTATION.md)
-- Deriv public WebSocket notes: [docs/DERIV_PUBLIC_WEBSOCKET.md](docs/DERIV_PUBLIC_WEBSOCKET.md)
+| Doc | Purpose |
+| --- | ------- |
+| [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) | **Live demo** — pre-flight checklist, scene-by-scene walkthrough, Q&A cheat sheet, fallbacks |
+| [docs/YOUTUBE_VIDEO_SCRIPT.md](docs/YOUTUBE_VIDEO_SCRIPT.md) | **Recorded pitch** — shot list, full narration script, B-roll, thumbnails |
+| [docs/DERIV_MILES_README.md](docs/DERIV_MILES_README.md) | Deriv Miles system (schema, APIs, redemption) |
+| [docs/DERIV_MILES_QUICKSTART.md](docs/DERIV_MILES_QUICKSTART.md) | Miles quick start |
+| [docs/TEAM_GIT_BRANCHING.md](docs/TEAM_GIT_BRANCHING.md) | Branching / PR conventions for collaborators |
+| [docs/VIBE_CODING_DOCS.md](docs/VIBE_CODING_DOCS.md) | Internal build notes |
+
+The phased delivery narrative lives in **What's Next — Phased Delivery** below. Additional long-form roadmap files may be added under `docs/` as the repo evolves.
 
 ### Pull requests (GitHub)
 
@@ -33,7 +39,7 @@ Visit:
 ## Stack
 
 - **Backend:** Go + Chi + PostgreSQL (port 8090)
-- **Frontend:** Next.js 14 + React + Tailwind CSS (port 3000)
+- **Frontend:** Next.js 16 + React + Tailwind CSS (port 3000)
 - **Database:** PostgreSQL 16 (default **5432** in `Makefile`; use **5436** or another port if you prefer — keep `DATABASE_URL` aligned everywhere, see [Configuration](#configuration))
 
 ## Architecture
@@ -331,10 +337,84 @@ The conversion loop:
 4. **CONVERT** - Demo→Real nudge at peak engagement
 5. **RETURN** - New competitions
 
-## License
+## Hackathon submission — collaborator checklist
 
-MIT
+Use this **before** you freeze the repo for the Deriv API Grand Prix submission.
+Primary references: [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) and
+[docs/YOUTUBE_VIDEO_SCRIPT.md](docs/YOUTUBE_VIDEO_SCRIPT.md).
+
+### Everyone (shared)
+
+- [ ] **Prod smoke test** — `https://deriv-arena-hackathon-beta.vercel.app` loads; sign in with Deriv OAuth; no `login?error=` in the URL after a clean flow.
+- [ ] **Backend health** — `https://deriv-arena-hackathon-production.up.railway.app/health` returns `"status":"ok"`.
+- [ ] **Deriv stream pill** — bottom-right shows **Deriv Live** (green) when logged in; if amber, re-login and confirm `NEXT_PUBLIC_DERIV_LEGACY_WS_APP_ID` if needed.
+- [ ] **Miles + Marketplace** — `/miles` shows balance; `/marketplace` prices match DB (run `frontend/scripts/seed-marketplace-catalog.mjs` against prod DB if catalog rows are missing).
+- [ ] **CORS** — Railway `CORS_ORIGINS` includes the Vercel production hostname (otherwise Marketplace balance stays `0` in the browser).
+- [ ] **Secrets** — no `.env`, tokens, or `DATABASE_URL` in screen recordings or public README edits.
+- [ ] **Submission package** — submission form link, demo URL, repo URL, and one-line pitch are copied into a single doc or Slack pin.
+
+### Random task assignment (for collaborators)
+
+1. **List everyone** who is responsible for pre-submission work (first names or GitHub handles). Example: `Alice Bob Carol Dave`.
+2. **Copy the task pool** from the table below (one line per task).
+3. **Shuffle and assign** from your repo root (macOS/Linux — requires `bash`):
+
+```bash
+# Edit NAMES and TASKS, then run:
+NAMES=(Alice Bob Carol Dave)
+TASKS=(
+  "Infra: verify Railway + Vercel env vars + health endpoints"
+  "Infra: run marketplace catalog seed on prod DB if needed"
+  "QA: full DEMO_WALKTHROUGH Scene 1–4 (home → arena → trade)"
+  "QA: full DEMO_WALKTHROUGH Scene 5–8 (dashboard → copilot → miles → modal)"
+  "QA: OAuth clean sign-in + session cookies (no state_mismatch)"
+  "Video: record B-roll pack (YOUTUBE_VIDEO_SCRIPT B-roll section)"
+  "Video: record main narration OR assemble cut from script"
+  "Docs: proofread README + submission links; fix any broken doc links"
+  "MCP: verify Telegram/OpenClaw demo still answers miles/catalog questions"
+  "Git: clean working tree; meaningful commit message; tag release candidate"
+  "Submission: fill hackathon form + attach video + repo + demo URL"
+  "Backup: export last 1h Railway logs after final demo run"
+)
+
+paste <(printf '%s\n' "${TASKS[@]}" | shuf) <(while true; do for n in "${NAMES[@]}"; do echo "$n"; done; done | head -n "${#TASKS[@]}") | column -t -s $'\t'
+```
+
+Each row pairs **one shuffled task** with **one rotating assignee**. Re-run the
+command if two people get the same heavy block back-to-back and you want a
+fairer split.
+
+### Task pool (copy into `TASKS=( ... )` above)
+
+| # | Task |
+| - | ---- |
+| 1 | **Infra** — Confirm Vercel env: `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_API_URL`, `DATABASE_URL`, `JWT_SECRET`, `OPENAI_API_KEY`, Deriv app IDs. |
+| 2 | **Infra** — Confirm Railway: `CORS_ORIGINS`, `DATABASE_URL`, `DERIV_APP_ID`; redeploy backend after env edits. |
+| 3 | **DB** — Run `frontend/scripts/seed-marketplace-catalog.mjs` on production Postgres if marketplace SKUs are missing or prices drift. |
+| 4 | **QA** — Walk [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) Scenes 1–4 on production. |
+| 5 | **QA** — Walk DEMO_WALKTHROUGH Scenes 5–8 + MCP/Telegram scene. |
+| 6 | **QA** — Fresh-account path: new OAuth user earns Quick Wins on `/miles` after join + live-score + finalize + share. |
+| 7 | **Auth** — One cold-browser OAuth run; confirm cookies set on `/api/auth/deriv` redirect; no `session_expired` / `state_mismatch`. |
+| 8 | **Video** — Capture B-roll list from [docs/YOUTUBE_VIDEO_SCRIPT.md](docs/YOUTUBE_VIDEO_SCRIPT.md) (B-roll section). |
+| 9 | **Video** — Record or edit the main story using sections 3–4 of the script; export 1080p + captions. |
+| 10 | **Docs** — README + `docs/` links accurate; add team names to **Team** section if required by rules. |
+| 11 | **MCP** — `mcp-client` smoke: list tools + one natural-language miles query against prod API URL. |
+| 12 | **Git** — `main` (or agreed release branch) builds: `cd frontend && npm run build`; `cd backend && go build ./...`. |
+| 13 | **Submission** — Hackathon portal: demo URL, repo, video link, 3-bullet feature list, contact email. |
+| 14 | **Post-demo** — Save Railway logs slice; rotate any token accidentally shown on stream. |
+
+### Sign-off (one person owns the merge)
+
+- [ ] All **Everyone** boxes checked.
+- [ ] Every row in the **Task pool** has a name next to it (from the shuffle output or a manual stand-up assignment).
+- [ ] Final commit tagged (e.g. `hackathon-submit-2026`) and pushed to the submission branch.
+
+---
 
 ## Team
 
 Built for Deriv API Grand Prix 2026 by "It works, don't ask how"
+
+## License
+
+MIT

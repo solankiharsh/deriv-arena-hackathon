@@ -42,7 +42,7 @@ class DerivTradingWS {
 
     this.reconnecting = true;
     try {
-      const res = await fetch("/api/auth/deriv-ws");
+      const res = await fetch("/api/auth/deriv-ws", { credentials: "same-origin" });
       if (!res.ok) return false;
       const data = await res.json();
       const wsUrl: string | null = data.wsUrl || null;

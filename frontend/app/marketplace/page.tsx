@@ -46,7 +46,7 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
       'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Includes message credits for the access window.',
     icon: '✨',
     isAvailable: true,
-    miles: 2400,
+    miles: 1500,
   },
   {
     id: 'ai_chart_analyst',
@@ -56,8 +56,8 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
     icon: '🤖',
     isAvailable: true,
     options: [
-      { label: '5 AI Credits', miles: 500, catalogId: 'ai_chart_analyst_5' },
-      { label: '20 AI Credits', miles: 1800, catalogId: 'ai_chart_analyst_20' },
+      { label: '5 AI Credits', miles: 300, catalogId: 'ai_chart_analyst_5' },
+      { label: '20 AI Credits', miles: 1100, catalogId: 'ai_chart_analyst_20' },
     ],
   },
   {
@@ -67,7 +67,7 @@ const MARKETPLACE_ITEMS: MarketplaceItem[] = [
       '7 days of curated Forex, Crypto & Indices signals with entry and exit points.',
     icon: '📡',
     isAvailable: true,
-    miles: 1200,
+    miles: 700,
   },
   {
     id: 'trading_journal_pro',

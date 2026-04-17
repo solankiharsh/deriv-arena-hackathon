@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Suspense } from 'react';
 import { ReferralCapture } from '@/components/ReferralCapture';
 import { DerivAutoConnect } from '@/components/DerivAutoConnect';
+import { DerivStreamStatus } from '@/components/deriv/DerivStreamStatus';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -55,6 +56,7 @@ export default function RootLayout({
         <DerivAutoConnect />
         <Navbar />
         {children}
+        <DerivStreamStatus />
         <footer className="border-t border-white/[0.04] py-4 px-6 mt-auto">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-text-muted">
             <span>&copy; {new Date().getFullYear()} DerivArena — Deriv API Grand Prix 2026</span>

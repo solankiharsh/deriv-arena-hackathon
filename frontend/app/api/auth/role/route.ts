@@ -39,6 +39,10 @@ export async function POST(req: NextRequest) {
         did: user.deriv_account_id,
         role: user.role,
         name: user.display_name,
+        // Preserve Deriv OAuth context so /api/auth/deriv-ws and trading features keep working
+        // after role selection (otherwise dt/da are dropped and the client gets 401).
+        ...(session.dt ? { dt: session.dt } : {}),
+        ...(session.da ? { da: session.da } : {}),
       });
       console.log(`[auth/role] Success: user=${user.id}, role=${user.role}`);
     }

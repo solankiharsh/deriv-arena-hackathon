@@ -7,7 +7,16 @@ export type MilesSourceType =
   | 'win_streak'
   | 'daily_login'
   | 'referral'
-  | 'manual';
+  | 'manual'
+  // Starter "quick wins" — fire at most once per user so first-time players
+  // can see Miles roll in from real actions (not just daily login) and afford
+  // their first Marketplace redemption in a single session.
+  | 'first_join'
+  | 'first_game'
+  | 'first_trade'
+  | 'first_finish'
+  | 'share_link'
+  | 'referral_join';
 
 export interface AwardXPInput {
   userId: string;
@@ -183,6 +192,101 @@ export async function awardWinStreak(
     xp,
     description: `${streakLen}-win streak milestone`,
     metadata: { streak_length: streakLen },
+  });
+}
+
+/**
+ * Starter reward helpers.
+ *
+ * Each `awardFirst*` grants miles at most once per user by keying the
+ * idempotency `source_id` to a stable `${source}_${userId}` value. The
+ * `source_type` enum guarantees the DB unique index on (source_type,
+ * source_id) collapses repeated calls to a no-op.
+ */
+const STARTER_MILES = {
+  firstJoin: 100,
+  firstGame: 150,
+  firstTrade: 125,
+  firstFinish: 175,
+  shareLink: 100,
+  referralJoin: 250,
+} as const;
+
+export async function awardFirstJoin(userId: string): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'first_join',
+    sourceId: `first_join_${userId}`,
+    xp: STARTER_MILES.firstJoin * 10,
+    description: 'Joined your first competition',
+  });
+}
+
+export async function awardFirstGame(userId: string): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'first_game',
+    sourceId: `first_game_${userId}`,
+    xp: STARTER_MILES.firstGame * 10,
+    description: 'Played your first arena game',
+  });
+}
+
+export async function awardFirstTrade(
+  userId: string,
+  instanceId: string,
+): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'first_trade',
+    sourceId: `first_trade_${userId}`,
+    xp: STARTER_MILES.firstTrade * 10,
+    description: 'Placed your first trade in a game',
+    metadata: { instance_id: instanceId },
+  });
+}
+
+export async function awardFirstFinish(
+  userId: string,
+  instanceId: string,
+): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'first_finish',
+    sourceId: `first_finish_${userId}`,
+    xp: STARTER_MILES.firstFinish * 10,
+    description: 'Finished your first full match',
+    metadata: { instance_id: instanceId },
+  });
+}
+
+export async function awardShareLink(
+  userId: string,
+  templateSlug: string,
+): Promise<AwardResult> {
+  return awardXP({
+    userId,
+    sourceType: 'share_link',
+    sourceId: `share_link_${userId}`,
+    xp: STARTER_MILES.shareLink * 10,
+    description: 'Shared your first competition link',
+    metadata: { template_slug: templateSlug },
+  });
+}
+
+export async function awardReferralJoin(
+  referrerUserId: string,
+  joinerUserId: string,
+): Promise<AwardResult> {
+  // Scoped to (referrer, joiner) so the same referrer can keep earning for
+  // unique new joiners, but not repeatedly for the same one.
+  return awardXP({
+    userId: referrerUserId,
+    sourceType: 'referral_join',
+    sourceId: `referral_join_${referrerUserId}_${joinerUserId}`,
+    xp: STARTER_MILES.referralJoin * 10,
+    description: 'A new player joined through your share link',
+    metadata: { joiner_user_id: joinerUserId },
   });
 }
 

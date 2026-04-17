@@ -36,7 +36,37 @@ const SOURCE_META: Record<
   competition_win: { label: 'Competition wins', icon: <Trophy className="w-4 h-4" /> },
   referral: { label: 'Referrals', icon: <Star className="w-4 h-4" /> },
   manual: { label: 'Manual grants', icon: <Star className="w-4 h-4" /> },
+  first_join: { label: 'First competition join', icon: <Star className="w-4 h-4" /> },
+  first_game: { label: 'First game played', icon: <Star className="w-4 h-4" /> },
+  first_trade: { label: 'First trade placed', icon: <TrendingUp className="w-4 h-4" /> },
+  first_finish: { label: 'First match finished', icon: <Trophy className="w-4 h-4" /> },
+  share_link: { label: 'Shared game link', icon: <Star className="w-4 h-4" /> },
+  referral_join: { label: 'Referral joins', icon: <Star className="w-4 h-4" /> },
 };
+
+// Static list of one-time "quick wins". Rendered on the Miles dashboard so
+// players can see exactly what's earned and what's still unlocked.
+interface StarterQuest {
+  type:
+    | 'first_join'
+    | 'first_game'
+    | 'first_trade'
+    | 'first_finish'
+    | 'share_link'
+    | 'referral_join';
+  title: string;
+  description: string;
+  miles: number;
+}
+
+const STARTER_QUESTS: StarterQuest[] = [
+  { type: 'first_join',    title: 'Join a Competition',        description: 'Enter any live partner challenge',          miles: 100 },
+  { type: 'first_game',    title: 'Play Your First Game',      description: 'Start your first arena session',             miles: 150 },
+  { type: 'first_trade',   title: 'Complete Your First Trade', description: 'Place one trade inside a game',              miles: 125 },
+  { type: 'first_finish',  title: 'Finish a Match',            description: 'Stay in until the results screen',           miles: 175 },
+  { type: 'share_link',    title: 'Share Your Game Link',      description: 'Send your partner game URL to players',      miles: 100 },
+  { type: 'referral_join', title: 'Get a Referral Join',       description: 'Bring in one player through your share link', miles: 250 },
+];
 
 interface BySourceEntry {
   source_type: string;
@@ -261,6 +291,60 @@ export default function MilesDashboardPage() {
                   </ul>
                 </div>
               )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-xl font-semibold">Quick Wins</h2>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    One-time rewards — finish all six and afford your first Marketplace redemption today.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-accent-primary/70">
+                  Starter
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {STARTER_QUESTS.map((q) => {
+                  const earned = !!breakdown?.by_source.some(
+                    (s) => s.source_type === q.type && s.event_count > 0,
+                  );
+                  return (
+                    <div
+                      key={q.type}
+                      className={`flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors ${
+                        earned
+                          ? 'border-success/30 bg-success/5'
+                          : 'border-border-subtle bg-white/[0.02]'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-text-primary truncate">
+                            {q.title}
+                          </p>
+                          {earned && (
+                            <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-success/15 text-success border border-success/30">
+                              Earned
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-text-muted mt-0.5">
+                          {q.description}
+                        </p>
+                      </div>
+                      <span
+                        className={`font-mono text-xs whitespace-nowrap ${
+                          earned ? 'text-success' : 'text-accent-primary'
+                        }`}
+                      >
+                        +{q.miles} MILES
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6">

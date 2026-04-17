@@ -61,6 +61,23 @@ export default function ShareGameModal({
   const [copied, setCopied] = useState(false);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
+  // One-time "shared my first link" Miles award. The server enforces
+  // idempotency, so even if the user shares via every channel we only
+  // grant once.
+  const reportShare = () => {
+    try {
+      fetch('/api/miles/starter/share-link', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_slug: templateSlug }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      // Swallow — Miles side-effect must never block the actual share action.
+    }
+  };
+
   const copyUrl = buildUrl(origin, templateSlug, partnerId, 'copy');
   const waUrl = buildUrl(origin, templateSlug, partnerId, 'whatsapp');
   const tgUrl = buildUrl(origin, templateSlug, partnerId, 'telegram');
@@ -77,6 +94,7 @@ export default function ShareGameModal({
     navigator.clipboard.writeText(copyUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    reportShare();
   };
 
   return (
@@ -116,6 +134,7 @@ export default function ShareGameModal({
             href={`https://wa.me/?text=${encodeURIComponent(waMessage)}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={reportShare}
             className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-card border border-border hover:border-green-500/40 hover:bg-green-500/5 transition-all group"
           >
             <MessageCircle className="w-6 h-6 text-green-500" />
@@ -126,6 +145,7 @@ export default function ShareGameModal({
             href={`https://t.me/share/url?url=${encodeURIComponent(tgUrl)}&text=${encodeURIComponent(tgMessage)}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={reportShare}
             className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-card border border-border hover:border-blue-400/40 hover:bg-blue-400/5 transition-all group"
           >
             <Send className="w-6 h-6 text-blue-400" />
@@ -136,12 +156,19 @@ export default function ShareGameModal({
             href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(twUrl)}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={reportShare}
             className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-card border border-border hover:border-text-primary/40 hover:bg-text-primary/5 transition-all group"
           >
             <XIcon className="w-6 h-6 text-text-primary" />
             <span className="text-[11px] text-text-muted group-hover:text-text-primary">X / Twitter</span>
           </a>
         </div>
+        <p className="mt-4 text-[10px] text-text-muted text-center">
+          Share your first game for a one-time{' '}
+          <span className="text-accent-primary">+100 Deriv Miles</span>. A
+          referral join pays{' '}
+          <span className="text-accent-primary">+250</span>.
+        </p>
       </div>
     </div>
   );
