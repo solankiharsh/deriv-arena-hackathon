@@ -48,9 +48,19 @@ func (sp *SignalProcessor) ProcessSignals(
 	}
 
 	// --- News ---
-	if news != nil && cfg.Indicators.NewsWeight > 0 {
+	effectiveNewsW := cfg.Indicators.NewsWeight
+	if cfg.AgentPolicy != nil {
+		effectiveNewsW *= TuningFromAgentPolicy(cfg.AgentPolicy).NewsMult
+	}
+	if effectiveNewsW > 1 {
+		effectiveNewsW = 1
+	}
+	if effectiveNewsW < 0 {
+		effectiveNewsW = 0
+	}
+	if news != nil && effectiveNewsW > 0 {
 		scores = append(scores, news.Score)
-		weights = append(weights, cfg.Indicators.NewsWeight)
+		weights = append(weights, effectiveNewsW)
 		decision.SignalSources["news"] = map[string]any{
 			"sentiment":  news.Score,
 			"item_count": news.ItemCount,
@@ -105,6 +115,10 @@ func (sp *SignalProcessor) ProcessSignals(
 	case "conservative":
 		threshold = 0.6
 	}
+	if cfg.AgentPolicy != nil {
+		threshold += TuningFromAgentPolicy(cfg.AgentPolicy).ThresholdDelta
+	}
+	threshold = clamp(threshold, 0.05, 0.95)
 
 	confidence := math.Abs(avg)
 	decision.Confidence = confidence

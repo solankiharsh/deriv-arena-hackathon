@@ -89,9 +89,12 @@ export function BotDetailView({ userId, bot, open, onOpenChange, onLevelUp }: Pr
                 });
               }
               break;
-            case 'status':
-              if (msg.data?.status) applyStatusEvent(botId, msg.data.status);
+            case 'status': {
+              const d = msg.data;
+              const st = typeof d === 'string' ? d : d?.status;
+              if (st) applyStatusEvent(botId, st);
               break;
+            }
           }
         } catch {
           /* ignore malformed */

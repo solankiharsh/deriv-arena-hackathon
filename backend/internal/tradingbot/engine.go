@@ -38,13 +38,14 @@ type BotEngine struct {
 }
 
 type botRunner struct {
-	botID    string
-	stopCh   chan struct{}
-	pauseCh  chan bool // true = pause, false = resume
-	paused   bool
-	wg       sync.WaitGroup
-	dayCount int
-	dayStart time.Time
+	botID              string
+	stopCh             chan struct{}
+	pauseCh            chan bool // true = pause, false = resume
+	paused             bool
+	wg                 sync.WaitGroup
+	dayCount           int
+	dayStart           time.Time
+	sessionBaselinePnL decimal.Decimal // bot_analytics.total_pnl at StartBot (session PnL = current - baseline)
 }
 
 // NewBotEngine wires all subsystems.
@@ -82,11 +83,16 @@ func (e *BotEngine) StartBot(ctx context.Context, bot *Bot) error {
 		return fmt.Errorf("bot already has a runner")
 	}
 
+	var baseline decimal.Decimal
+	if a, err := e.store.getBotAnalyticsInternal(ctx, bot.ID); err == nil {
+		baseline = a.TotalPnL
+	}
 	runner := &botRunner{
-		botID:    bot.ID,
-		stopCh:   make(chan struct{}),
-		pauseCh:  make(chan bool, 4),
-		dayStart: time.Now(),
+		botID:              bot.ID,
+		stopCh:             make(chan struct{}),
+		pauseCh:            make(chan bool, 4),
+		dayStart:           time.Now(),
+		sessionBaselinePnL: baseline,
 	}
 	e.runners.Store(bot.ID, runner)
 
@@ -290,6 +296,16 @@ func (e *BotEngine) executeTrade(ctx context.Context, bot *Bot, decision *TradeD
 	if stake.IsZero() {
 		stake = decimal.NewFromInt(10)
 	}
+	if bot.Config.AgentPolicy != nil {
+		mult := TuningFromAgentPolicy(bot.Config.AgentPolicy).StakeMult
+		stake = stake.Mul(decimal.NewFromFloat(mult))
+	}
+	if stake.LessThan(decimal.NewFromInt(1)) {
+		stake = decimal.NewFromInt(1)
+	}
+	if stake.GreaterThan(decimal.NewFromInt(1000)) {
+		stake = decimal.NewFromInt(1000)
+	}
 
 	// Simple P&L model: outcome is biased by confidence.
 	// (Paper/demo mode — no real execution.)
@@ -355,9 +371,28 @@ func (e *BotEngine) executeTrade(ctx context.Context, bot *Bot, decision *TradeD
 		e.broadcast(bot.ID, EngineEvent{BotID: bot.ID, Type: "level_up", Data: levelUp, At: time.Now()})
 	}
 
-	// Push updated analytics
+	// Push updated analytics + optional auto-stop (session PnL vs execution limits)
 	if a, err := e.store.getBotAnalyticsInternal(ctx, bot.ID); err == nil {
 		e.broadcast(bot.ID, EngineEvent{BotID: bot.ID, Type: "analytics", Data: a, At: time.Now()})
+		if v, ok := e.runners.Load(bot.ID); ok {
+			r := v.(*botRunner)
+			sessionPnL := a.TotalPnL.Sub(r.sessionBaselinePnL)
+			if ev := evaluateAutoStop(sessionPnL, bot.Config.Execution); ev.ShouldStop {
+				e.broadcast(bot.ID, EngineEvent{
+					BotID: bot.ID,
+					Type:  "status",
+					Data: map[string]any{
+						"status": StatusStopped,
+						"reason": ev.Reason,
+						"auto":   true,
+					},
+					At: time.Now(),
+				})
+				// Async: StopBot waits on runLoop; must not block inside processBot.
+				bid := bot.ID
+				go func() { _ = e.StopBot(context.Background(), bid) }()
+			}
+		}
 	}
 	return nil
 }

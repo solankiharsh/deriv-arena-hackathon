@@ -261,7 +261,8 @@ export function AgentConfigPanel() {
                     <div className="bg-amber-500/5 border border-amber-500/10 p-2 rounded flex items-start gap-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
                         <p className="text-[10px] text-amber-400/80 leading-tight">
-                            Trading parameters affect how your agent trades on the demo account.
+                            Trading parameters affect how your agent trades on the demo account. For AI trading bots, configure
+                            agent policy and auto-stop (target / risk limits) in the Bot Command Center when you create or edit a bot—those rules are stored on the bot config and enforced by the backend.
                         </p>
                     </div>
 

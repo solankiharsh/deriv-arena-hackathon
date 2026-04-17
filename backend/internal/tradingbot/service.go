@@ -196,6 +196,42 @@ func validateConfig(cfg *BotConfig) error {
 		}
 	}
 	cfg.NewsFilters = filtered
+
+	// Optional agent policy (paper-agent taxonomy)
+	if cfg.AgentPolicy != nil {
+		if err := validateAgentPolicy(cfg.AgentPolicy); err != nil {
+			return err
+		}
+	}
+
+	// Auto-stop / paper bankroll
+	if cfg.Execution.PaperBankroll <= 0 {
+		cfg.Execution.PaperBankroll = 10000
+	}
+	if cfg.Execution.PaperBankroll < 100 {
+		cfg.Execution.PaperBankroll = 100
+	}
+	if cfg.Execution.PaperBankroll > 10_000_000 {
+		cfg.Execution.PaperBankroll = 10_000_000
+	}
+	if cfg.Execution.TargetPayoutUsd < 0 {
+		cfg.Execution.TargetPayoutUsd = 0
+	}
+	if cfg.Execution.TargetPayoutUsd > 1_000_000 {
+		cfg.Execution.TargetPayoutUsd = 1_000_000
+	}
+	if cfg.Execution.RiskTolerancePercent < 0 {
+		cfg.Execution.RiskTolerancePercent = 0
+	}
+	if cfg.Execution.RiskTolerancePercent > 100 {
+		cfg.Execution.RiskTolerancePercent = 100
+	}
+	switch cfg.Execution.AutoStopMode {
+	case "", AutoStopFirstHit, AutoStopTargetOnly, AutoStopRiskOnly:
+	default:
+		return fmt.Errorf("invalid execution.autoStopMode")
+	}
+
 	return nil
 }
 

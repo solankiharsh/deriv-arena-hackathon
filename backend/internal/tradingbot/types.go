@@ -63,6 +63,7 @@ type BotConfig struct {
 	NewsFilters       []string         `json:"newsFilters"`
 	TimeRestrictions  TimeRestrictions `json:"timeRestrictions"`
 	EnabledFeeds      map[string]bool  `json:"enabledFeeds,omitempty"`
+	AgentPolicy       *BotAgentPolicy  `json:"agentPolicy,omitempty"`
 }
 
 // IndicatorsConfig defines which signal sources are active.
@@ -74,10 +75,14 @@ type IndicatorsConfig struct {
 
 // ExecutionConfig defines per-trade parameters.
 type ExecutionConfig struct {
-	StakeAmount       float64 `json:"stakeAmount"`
-	MaxDailyTrades    int     `json:"maxDailyTrades"`
-	StopLossPercent   float64 `json:"stopLossPercent"`
-	TakeProfitPercent float64 `json:"takeProfitPercent"`
+	StakeAmount            float64 `json:"stakeAmount"`
+	MaxDailyTrades         int     `json:"maxDailyTrades"`
+	StopLossPercent        float64 `json:"stopLossPercent"`
+	TakeProfitPercent      float64 `json:"takeProfitPercent"`
+	TargetPayoutUsd        float64 `json:"targetPayoutUsd"`
+	RiskTolerancePercent   float64 `json:"riskTolerancePercent"`
+	PaperBankroll          float64 `json:"paperBankroll"`
+	AutoStopMode           string  `json:"autoStopMode"`
 }
 
 // TimeRestrictions optionally limits when a bot can trade.

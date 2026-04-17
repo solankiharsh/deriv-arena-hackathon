@@ -1,3 +1,5 @@
+import type { AutoStopMode, BotAgentPolicy } from '@/lib/botAgentPolicy';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090';
 
 export interface IndicatorsConfig {
@@ -11,6 +13,13 @@ export interface ExecutionConfig {
   maxDailyTrades: number;
   stopLossPercent: number;
   takeProfitPercent: number;
+  /** Session profit target (USD); 0 = unused for auto-stop */
+  targetPayoutUsd: number;
+  /** 0–100; max session loss = paperBankroll * (this/100) */
+  riskTolerancePercent: number;
+  /** Notional bankroll for risk % (synthetic) */
+  paperBankroll: number;
+  autoStopMode: AutoStopMode;
 }
 
 export interface TimeRestrictions {
@@ -28,6 +37,8 @@ export interface BotConfig {
   newsFilters: string[];
   timeRestrictions: TimeRestrictions;
   enabledFeeds?: Record<string, boolean>;
+  /** Optional paper-agent-style policy layer */
+  agentPolicy?: BotAgentPolicy;
 }
 
 export interface Bot {
@@ -216,6 +227,10 @@ export function defaultBotConfig(): BotConfig {
       maxDailyTrades: 20,
       stopLossPercent: 5,
       takeProfitPercent: 10,
+      targetPayoutUsd: 100,
+      riskTolerancePercent: 50,
+      paperBankroll: 10000,
+      autoStopMode: 'first_hit',
     },
     newsFilters: [],
     timeRestrictions: { enabled: false, startHour: 9, endHour: 17 },
