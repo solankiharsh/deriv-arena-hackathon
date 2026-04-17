@@ -243,8 +243,11 @@ CREATE INDEX IF NOT EXISTS idx_trading_copilot_entitlements_expires ON deriv_tra
 -- first_game 150, first_trade 125, first_finish 175) unlock the rest.
 INSERT INTO deriv_miles_catalog (id, category, name, description, miles_cost, stock_quantity, available, metadata, sort_order)
 VALUES
+  ('copilot_starter', 'premium_feature', 'Trading Copilot — Starter',
+   'Short taste of the Trading Copilot: 30 message credits, 3-day access window. Sized to fit the first-login welcome bonus so every new user can try it immediately.',
+   300, NULL, true, '{"feature":"trading_copilot","message_credits":30,"duration_days":3}'::jsonb, 39),
   ('premium_trading_copilot', 'premium_feature', 'Trading Copilot',
-   'Streaming AI assistant with Deriv context, charts, and structured widgets. Includes message credits for the access period.',
+   'Full Trading Copilot pass: 600 message credits, 30-day access window with Deriv-aware analysis and charts.',
    1200, NULL, true, '{"feature":"trading_copilot","message_credits":600,"duration_days":30}'::jsonb, 40),
   ('ai_chart_analyst_5', 'third_party_tool', 'AI Chart Analyst — 5 credits',
    'Partner voucher for five AI-powered chart analysis credits.',

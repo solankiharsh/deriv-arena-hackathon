@@ -40,13 +40,15 @@ interface MarketplaceItem {
 const MARKETPLACE_ITEMS: MarketplaceItem[] = [
   {
     id: 'premium_trading_copilot',
-    catalogId: 'premium_trading_copilot',
     title: 'Trading Copilot',
     description:
-      'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Includes message credits for the access window.',
+      'Streaming AI workspace with Deriv-aware analysis, charts, and structured widgets. Pick the tier that matches how much you want to explore before going deeper.',
     icon: '✨',
     isAvailable: true,
-    miles: 1200,
+    options: [
+      { label: 'Starter · 3 days / 30 credits',  miles: 300,  catalogId: 'copilot_starter' },
+      { label: 'Full Access · 30 days / 600 credits', miles: 1200, catalogId: 'premium_trading_copilot' },
+    ],
   },
   {
     id: 'ai_chart_analyst',
@@ -176,7 +178,10 @@ export default function MarketplacePage() {
       setModalOpen(false);
       setPendingItem(null);
       fetchBalance(userId);
-      if (catalogId === 'premium_trading_copilot') {
+      if (
+        catalogId === 'premium_trading_copilot' ||
+        catalogId === 'copilot_starter'
+      ) {
         router.push('/trading-copilot');
       }
     } catch (err) {

@@ -23,11 +23,25 @@ const pool = new pg.Pool({
 
 const items = [
   {
+    id: 'copilot_starter',
+    category: 'premium_feature',
+    name: 'Trading Copilot — Starter',
+    description:
+      'Short taste of the Trading Copilot: 30 message credits, 3-day access window. Sized to fit the first-login welcome bonus so every new user can try it immediately.',
+    miles_cost: 300,
+    metadata: {
+      feature: 'trading_copilot',
+      message_credits: 30,
+      duration_days: 3,
+    },
+    sort_order: 39,
+  },
+  {
     id: 'premium_trading_copilot',
     category: 'premium_feature',
     name: 'Trading Copilot',
     description:
-      'Streaming AI assistant with Deriv context, charts, and structured widgets. Includes message credits for the access period.',
+      'Full Trading Copilot pass: 600 message credits, 30-day access window with Deriv-aware analysis and charts.',
     miles_cost: 1200,
     metadata: {
       feature: 'trading_copilot',
