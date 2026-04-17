@@ -19,7 +19,6 @@
   "type": "module",
   "dependencies": {
     "@opentelemetry/sdk-node": "^0.211.0",
-    "@privy-io/react-auth": "^1.94.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",

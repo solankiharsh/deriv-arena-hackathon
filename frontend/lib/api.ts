@@ -27,8 +27,6 @@ import {
   XPLeaderboardEntry,
   AgentConversationSummary,
   AgentTaskCompletionDetail,
-  LoginResponse,
-  QuickstartResponse,
   NewsItem,
   NewsFeedResponse,
   SingleNewsResponse,
@@ -352,47 +350,6 @@ export async function getTaskLeaderboard(): Promise<TaskLeaderboardEntry[]> {
 export async function getTaskStats(): Promise<TaskStats> {
   const response = await api.get<TaskStats>('/arena/tasks/stats');
   return response.data;
-}
-
-// ── User Auth (Privy) ──
-
-export async function loginWithPrivyToken(privyToken: string): Promise<LoginResponse> {
-  const response = await axios.post<{ success: boolean; data: LoginResponse }>(
-    `${API_URL}/auth/login`,
-    { privyToken },
-    { headers: { 'Content-Type': 'application/json' } }
-  );
-
-  if (!response.data?.data) {
-    throw new Error('Login failed');
-  }
-
-  return response.data.data;
-}
-
-export async function quickstartAgent(accessToken: string, payload?: {
-  archetypeId?: string;
-  name?: string;
-  displayName?: string;
-  twitterUsername?: string;
-  avatarUrl?: string;
-}): Promise<QuickstartResponse> {
-  const response = await axios.post<{ success: boolean; data: QuickstartResponse }>(
-    `${API_URL}/auth/agent/quickstart`,
-    payload || {},
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (!response.data?.data) {
-    throw new Error('Quickstart failed');
-  }
-
-  return response.data.data;
 }
 
 // ── Agent Auth (SIWS) ──
