@@ -1,4 +1,4 @@
-.PHONY: help dev backend frontend db-up db-down db-migrate db-seed-trading-copilot db-rollback clean test stop status
+.PHONY: help dev backend frontend db-up db-down db-migrate db-apply-020-deriv-miles db-seed-trading-copilot db-rollback clean test stop status
 
 # Directory containing this Makefile (so `make -C … dev` still works)
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -22,8 +22,9 @@ help:
 	@echo ""
 	@echo "  make db-up        - Start PostgreSQL (port $(DB_PORT))"
 	@echo "  make db-down      - Stop PostgreSQL"
-	@echo "  make db-migrate              - Run base DB migrations (010)"
-	@echo "  make db-seed-trading-copilot - Idempotent miles marketplace + Copilot seed (run if redeem fails)"
+	@echo "  make db-migrate              - Run 010 + apply 020 miles if needed + marketplace seed"
+	@echo "  make db-apply-020-deriv-miles - Apply 020 only when deriv_miles_catalog is missing"
+	@echo "  make db-seed-trading-copilot - Idempotent Copilot + marketplace catalog rows"
 	@echo "  make db-rollback  - Rollback migrations"
 	@echo ""
 	@echo "  make test         - Run tests"
@@ -68,7 +69,12 @@ db-migrate:
 		echo "✅ Database already migrated" || \
 		($(PSQL) -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) < backend/migrations/010_competitions.up.sql && \
 		echo "✅ Migrations complete")
+	@$(MAKE) db-apply-020-deriv-miles
 	@$(MAKE) db-seed-trading-copilot
+
+db-apply-020-deriv-miles:
+	@PSQL="$(PSQL)" DB_HOST="$(DB_HOST)" DB_PORT="$(DB_PORT)" DB_USER="$(DB_USER)" DB_NAME="$(DB_NAME)" \
+		bash "$(MAKEFILE_DIR)scripts/ensure-020-deriv-miles.sh"
 
 db-seed-trading-copilot:
 	@echo "📎 Applying Trading Copilot / marketplace miles catalog seed (idempotent)…"

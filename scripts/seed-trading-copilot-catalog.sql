@@ -13,8 +13,11 @@ CREATE INDEX IF NOT EXISTS idx_trading_copilot_entitlements_expires
 
 DO $seed$
 BEGIN
-  IF to_regclass('public.deriv_miles_catalog') IS NULL THEN
-    RAISE NOTICE 'deriv_miles_catalog missing — apply backend/migrations/020_deriv_miles.up.sql or POST /api/migrate from the frontend';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'deriv_miles_catalog'
+  ) THEN
+    RAISE NOTICE 'deriv_miles_catalog missing — run: make db-migrate (applies 020) or POST /api/migrate from the frontend';
     RETURN;
   END IF;
 
