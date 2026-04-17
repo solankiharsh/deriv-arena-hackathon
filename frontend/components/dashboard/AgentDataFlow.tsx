@@ -11,6 +11,9 @@ import { getArenaTasks, getAgentPositions, getAgentConversations } from '@/lib/a
 import type { AgentTaskType, Position, AgentConversationSummary } from '@/lib/types';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useBotStore } from '@/lib/stores/bot-store';
+import type { Bot } from '@/lib/api/trading-bots';
+import { LiveFeedPanel, FeedToggleChip } from './InteractiveFeedNode';
 
 // ── Feed node definitions ───────────────────────────────────────
 
@@ -272,6 +275,22 @@ export function AgentDataFlow() {
     const [activeTab, setActiveTab] = useState<DetailTab>('tasks');
     const [selectedFeed, setSelectedFeed] = useState<string | null>(null);
     const isMobile = useIsMobile();
+
+    // Bot-aware interactive feeds
+    const { bots, fetchBots } = useBotStore();
+    const userId = agent?.id || 'local-dev-user';
+    useEffect(() => {
+        fetchBots(userId);
+    }, [fetchBots, userId]);
+    const primaryBot: Bot | null = useMemo(() => {
+        const list = Array.isArray(bots) ? bots : [];
+        if (list.length === 0) return null;
+        return list.find((b) => b.status === 'running') || list[0];
+    }, [bots]);
+    const isFeedEnabled = useCallback(
+        (feedId: string) => primaryBot?.config?.enabledFeeds?.[feedId] ?? true,
+        [primaryBot]
+    );
     const [tasks, setTasks] = useState<AgentTaskType[]>([]);
     const [positions, setPositions] = useState<Position[]>([]);
     const [chats, setChats] = useState<AgentConversationSummary[]>([]);
@@ -413,23 +432,39 @@ export function AgentDataFlow() {
                                 )}
                                 {/* Feed card */}
                                 <div className="flex justify-center">
-                                    <button
-                                        onClick={() => setSelectedFeed(feed.id)}
-                                        className="relative bg-white/[0.06] backdrop-blur-xl border border-white/[0.1] px-4 py-2.5 cursor-pointer active:bg-white/[0.1] transition-colors w-[72%]"
-                                    >
-                                        <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l" style={{ borderColor: c }} />
-                                        <span className="absolute top-0 right-0 w-2.5 h-2.5 border-t border-r" style={{ borderColor: c }} />
-                                        <span className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b border-l" style={{ borderColor: c }} />
-                                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b border-r" style={{ borderColor: c }} />
+                                    <div className="relative w-[72%]">
+                                        <button
+                                            onClick={() => setSelectedFeed(feed.id)}
+                                            className="relative bg-white/[0.06] backdrop-blur-xl border border-white/[0.1] px-4 py-2.5 cursor-pointer active:bg-white/[0.1] transition-all w-full"
+                                            style={{
+                                                opacity: isFeedEnabled(feed.id) ? 1 : 0.45,
+                                                filter: isFeedEnabled(feed.id) ? undefined : 'grayscale(0.6)',
+                                            }}
+                                        >
+                                            <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l" style={{ borderColor: c }} />
+                                            <span className="absolute top-0 right-0 w-2.5 h-2.5 border-t border-r" style={{ borderColor: c }} />
+                                            <span className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b border-l" style={{ borderColor: c }} />
+                                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b border-r" style={{ borderColor: c }} />
 
-                                        <div className="flex items-center gap-3">
-                                            <Icon className="w-6 h-6 flex-shrink-0" style={{ color: feed.color }} />
-                                            <div className="min-w-0 text-left">
-                                                <div className="text-sm font-bold text-white leading-tight">{feed.label}</div>
-                                                <div className="text-[10px] text-white/35">{feed.desc}</div>
+                                            <div className="flex items-center gap-3">
+                                                <Icon className="w-6 h-6 flex-shrink-0" style={{ color: feed.color }} />
+                                                <div className="min-w-0 text-left">
+                                                    <div className="text-sm font-bold text-white leading-tight">{feed.label}</div>
+                                                    <div className="text-[10px] text-white/35">{feed.desc}</div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </button>
+                                        </button>
+                                        {primaryBot && (
+                                            <div className="absolute -top-2 -right-2 z-20">
+                                                <FeedToggleChip
+                                                    userId={userId}
+                                                    bot={primaryBot}
+                                                    feedId={feed.id as any}
+                                                    feedColor={feed.color}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -629,6 +664,8 @@ export function AgentDataFlow() {
                     open={!!selectedFeed}
                     onClose={() => setSelectedFeed(null)}
                     isMobile={isMobile}
+                    bot={primaryBot}
+                    userId={userId}
                 />
             </div>
         );
@@ -654,6 +691,7 @@ export function AgentDataFlow() {
                     const Icon = feed.icon;
                     const pos = feedPositions[i];
                     const c = `${feed.color}40`;
+                    const enabled = isFeedEnabled(feed.id);
                     return (
                         <div
                             key={feed.id}
@@ -661,8 +699,9 @@ export function AgentDataFlow() {
                             style={{ left: pos?.x, top: pos?.y }}
                         >
                             <div
-                                className="relative bg-[#0e0e18]/90 backdrop-blur-md px-3 py-2 cursor-pointer group hover:bg-[#0e0e18] transition-colors duration-200"
+                                className="relative bg-[#0e0e18]/90 backdrop-blur-md px-3 py-2 cursor-pointer group hover:bg-[#0e0e18] transition-all duration-200"
                                 onClick={() => setSelectedFeed(feed.id)}
+                                style={{ opacity: enabled ? 1 : 0.45, filter: enabled ? undefined : 'grayscale(0.6)' }}
                             >
                                 {/* Corner brackets */}
                                 <span className="absolute top-0 left-0 w-2 h-2 border-t border-l" style={{ borderColor: c }} />
@@ -678,6 +717,16 @@ export function AgentDataFlow() {
                                     </div>
                                 </div>
                             </div>
+                            {primaryBot && (
+                                <div className="absolute -top-2 -right-2 z-20">
+                                    <FeedToggleChip
+                                        userId={userId}
+                                        bot={primaryBot}
+                                        feedId={feed.id as any}
+                                        feedColor={feed.color}
+                                    />
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -848,6 +897,8 @@ export function AgentDataFlow() {
                 open={!!selectedFeed}
                 onClose={() => setSelectedFeed(null)}
                 isMobile={isMobile}
+                bot={primaryBot}
+                userId={userId}
             />
         </div>
     );
@@ -855,7 +906,7 @@ export function AgentDataFlow() {
 
 // ── Feed Detail Sheet ───────────────────────────────────────────
 
-function FeedDetailSheet({ feedId, open, onClose, isMobile }: { feedId: string | null; open: boolean; onClose: () => void; isMobile: boolean }) {
+function FeedDetailSheet({ feedId, open, onClose, isMobile, bot, userId }: { feedId: string | null; open: boolean; onClose: () => void; isMobile: boolean; bot: Bot | null; userId: string }) {
     const feed = FEEDS.find(f => f.id === feedId);
     const details = feedId ? FEED_DETAILS[feedId] : null;
     if (!feed || !details) return null;
@@ -881,6 +932,15 @@ function FeedDetailSheet({ feedId, open, onClose, isMobile }: { feedId: string |
                 </SheetHeader>
 
                 <div className="mt-5 space-y-6 px-1">
+                    {/* Live data panel (bot-scoped) */}
+                    <LiveFeedPanel
+                        userId={userId}
+                        bot={bot}
+                        feedId={feed.id as any}
+                        feedColor={feed.color}
+                        feedLabel={feed.label}
+                    />
+
                     {/* Description */}
                     <p className="text-sm text-white/55 leading-relaxed">
                         {details.description}

@@ -1,4 +1,4 @@
-.PHONY: help dev backend frontend db-up db-down db-migrate db-apply-020-deriv-miles db-seed-trading-copilot db-rollback clean test stop status
+.PHONY: help dev backend frontend db-up db-down db-migrate db-migrate-railway db-apply-020-deriv-miles db-seed-trading-copilot db-rollback clean test stop status
 
 # Directory containing this Makefile (so `make -C … dev` still works)
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -23,6 +23,7 @@ help:
 	@echo "  make db-up        - Start PostgreSQL (port $(DB_PORT))"
 	@echo "  make db-down      - Stop PostgreSQL"
 	@echo "  make db-migrate              - Run 010 + apply 020 miles if needed + marketplace seed"
+	@echo "  make db-migrate-railway      - Same as db-migrate but requires DATABASE_URL (e.g. Railway)"
 	@echo "  make db-apply-020-deriv-miles - Apply 020 only when deriv_miles_catalog is missing"
 	@echo "  make db-seed-trading-copilot - Idempotent Copilot + marketplace catalog rows"
 	@echo "  make db-rollback  - Rollback migrations"
@@ -66,6 +67,10 @@ db-down:
 
 db-migrate:
 	@bash "$(MAKEFILE_DIR)scripts/db-migrate.sh"
+
+# Set DATABASE_URL to your Railway Postgres URI first (shell export or inline on the command line).
+db-migrate-railway:
+	@bash "$(MAKEFILE_DIR)scripts/migrate-railway.sh"
 
 db-apply-020-deriv-miles:
 	@bash "$(MAKEFILE_DIR)scripts/ensure-020-deriv-miles.sh"

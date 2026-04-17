@@ -82,7 +82,7 @@ export function BuyTriggersConfig({ triggers, onUpdate }: BuyTriggersConfigProps
                   <SelectTrigger className="w-[120px] bg-white/[0.04] border-white/[0.12] text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-white/[0.12]">
+                  <SelectContent className="bg-card border-white/[0.12]">
                     <SelectItem value="2">2 wallets</SelectItem>
                     <SelectItem value="3">3 wallets</SelectItem>
                     <SelectItem value="5">5 wallets</SelectItem>
@@ -151,7 +151,7 @@ export function BuyTriggersConfig({ triggers, onUpdate }: BuyTriggersConfigProps
                   <SelectTrigger className="w-[130px] bg-white/[0.04] border-white/[0.12] text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1a1a1a] border-white/[0.12]">
+                  <SelectContent className="bg-card border-white/[0.12]">
                     <SelectItem value="5">5 minutes</SelectItem>
                     <SelectItem value="15">15 minutes</SelectItem>
                     <SelectItem value="60">1 hour</SelectItem>

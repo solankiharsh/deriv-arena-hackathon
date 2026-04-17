@@ -203,7 +203,7 @@ function EpochContent({
                                 >
                                     <span className={`text-[10px] font-bold font-mono w-5 text-center ${
                                         alloc.rank === 1 ? 'text-yellow-400' :
-                                        alloc.rank === 2 ? 'text-gray-300' :
+                                        alloc.rank === 2 ? 'text-text-secondary' :
                                         'text-amber-600'
                                     }`}>
                                         #{alloc.rank}
