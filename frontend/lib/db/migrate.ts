@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS deriv_miles_transactions (
   metadata         JSONB DEFAULT '{}',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT valid_transaction_type CHECK (transaction_type IN ('earn','spend','expire','refund')),
-  CONSTRAINT valid_source_type CHECK (source_type IN ('xp','profitable_trade','competition_win','win_streak','daily_login','referral','manual','redemption')),
+  CONSTRAINT valid_source_type CHECK (source_type IN ('xp','profitable_trade','competition_win','win_streak','daily_login','referral','manual','redemption','first_login','first_join','first_game','first_trade','first_finish','share_link','referral_join')),
   CONSTRAINT valid_amount_sign CHECK (
     (transaction_type = 'earn' AND amount > 0) OR
     (transaction_type IN ('spend','expire') AND amount < 0) OR
@@ -302,6 +302,24 @@ CREATE TRIGGER trigger_check_deriv_miles_balance
   BEFORE UPDATE ON deriv_miles_balances
   FOR EACH ROW
   EXECUTE FUNCTION check_deriv_miles_balance();
+
+-- Idempotent constraint repair: older deploys had the check list frozen at
+-- the original 8 source types. Re-running migrate should widen the allow-list
+-- to include the starter "quick win" types so awardFirstLogin / awardFirst*
+-- can actually write rows in production instead of silently failing on the
+-- check constraint.
+DO $$
+BEGIN
+  ALTER TABLE deriv_miles_transactions DROP CONSTRAINT IF EXISTS valid_source_type;
+  ALTER TABLE deriv_miles_transactions ADD CONSTRAINT valid_source_type CHECK (
+    source_type IN (
+      'xp','profitable_trade','competition_win','win_streak','daily_login',
+      'referral','manual','redemption',
+      'first_login','first_join','first_game','first_trade','first_finish',
+      'share_link','referral_join'
+    )
+  );
+END$$;
 `;
 
 const SEED_SQL = `

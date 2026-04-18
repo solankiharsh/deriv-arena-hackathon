@@ -11,9 +11,50 @@ import { Youtube } from "lucide-react";
  * demo is uploaded. If left `null`, the section renders a restrained
  * "coming soon" placeholder rather than an embed.
  */
-const YOUTUBE_VIDEO_ID: string | null = null;
+/**
+ * Either a bare 11-character YouTube video id (e.g. "CT4vM7ilPLY") or any
+ * copy-pasted watch URL — youtu.be short link, watch?v=…, /embed/…, /shorts/….
+ * `null` renders the placeholder below instead of an iframe.
+ */
+const YOUTUBE_VIDEO_ID: string | null =
+  "https://youtu.be/CT4vM7ilPLY?si=UnftloDDX17PqKRs";
+
+/**
+ * Pull the 11-char video id out of whatever the caller pasted. Returns null
+ * if we can't find one (so the placeholder still renders cleanly).
+ */
+function resolveYoutubeId(input: string | null): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+
+  // Bare id — YouTube video ids are 11 chars of [A-Za-z0-9_-].
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+  // URL forms. We don't throw on malformed URLs so the placeholder still
+  // renders if the user pasted something weird.
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname.includes("youtu.be")) {
+      const id = url.pathname.replace(/^\//, "");
+      return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+    }
+    if (url.hostname.includes("youtube.com")) {
+      const v = url.searchParams.get("v");
+      if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+      const parts = url.pathname.split("/").filter(Boolean);
+      // handles /embed/<id> and /shorts/<id>
+      const last = parts[parts.length - 1];
+      return last && /^[A-Za-z0-9_-]{11}$/.test(last) ? last : null;
+    }
+  } catch {
+    // Not a URL — fall through.
+  }
+  return null;
+}
 
 export function HomeWalkthroughVideo() {
+  const videoId = resolveYoutubeId(YOUTUBE_VIDEO_ID);
+
   return (
     <div className="mt-10 sm:mt-14 max-w-4xl mx-auto">
       <div className="text-center mb-4">
@@ -24,9 +65,9 @@ export function HomeWalkthroughVideo() {
       </div>
 
       <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10 shadow-[0_12px_48px_rgba(0,0,0,0.55)] bg-black/50">
-        {YOUTUBE_VIDEO_ID ? (
+        {videoId ? (
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${YOUTUBE_VIDEO_ID}?rel=0&modestbranding=1`}
+            src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`}
             title="DerivArena walkthrough"
             loading="lazy"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

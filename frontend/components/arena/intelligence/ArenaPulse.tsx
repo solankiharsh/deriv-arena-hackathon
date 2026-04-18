@@ -40,15 +40,27 @@ export function ArenaPulse() {
         const leaders: GlobalLeaderboardEntry[] =
           leaderboard.status === "fulfilled" ? leaderboard.value.entries : [];
 
-        const totalPlayers = liveList.reduce(
-          (acc: number, it: GameInstance) => acc + (it.player_count ?? 0),
-          0,
-        );
+        const totalPlayers = liveList.reduce((acc: number, it: GameInstance) => {
+          const raw = (it as unknown as { player_count?: number | string })
+            .player_count;
+          const n = typeof raw === "number" ? raw : Number(raw ?? 0);
+          return acc + (Number.isFinite(n) ? n : 0);
+        }, 0);
 
+        // Go/Postgres DECIMAL values come back serialized as strings; coerce
+        // to number before arithmetic so we don't explode on `.toFixed`.
+        const rawScore = (leaders[0] as unknown as { score?: number | string })
+          ?.score;
+        const coercedScore =
+          typeof rawScore === "number"
+            ? rawScore
+            : typeof rawScore === "string" && rawScore.length > 0
+              ? Number(rawScore)
+              : 0;
         const top = leaders[0]
           ? {
               name: leaders[0].display_name || "—",
-              score: leaders[0].score ?? 0,
+              score: Number.isFinite(coercedScore) ? coercedScore : 0,
             }
           : null;
 
@@ -79,7 +91,7 @@ export function ArenaPulse() {
     {
       label: "Top Performer",
       value: stats?.topPerformer
-        ? `${stats.topPerformer.name} · ${stats.topPerformer.score.toFixed(0)}`
+        ? `${stats.topPerformer.name} · ${Number(stats.topPerformer.score).toFixed(0)}`
         : null,
     },
   ];
