@@ -34,6 +34,7 @@ import GradientText from '@/components/reactbits/GradientText';
 import DecryptedText from '@/components/reactbits/DecryptedText';
 import GlitchText from '@/components/reactbits/GlitchText';
 import { JourneyLoop } from '@/components/home/JourneyLoop';
+import { HomeWalkthroughVideo } from '@/components/home/HomeWalkthroughVideo';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 const RisingLines = dynamic(() => import('@/components/react-bits/rising-lines'), { ssr: false });
@@ -360,6 +361,15 @@ export default function Home() {
 
             <AnimatedSection delay={0.1}>
               <JourneyLoop />
+            </AnimatedSection>
+
+            {/*
+              Ninety-second walkthrough video. YOUTUBE_VIDEO_ID is intentionally
+              a constant (not an env var) so the repo tells the full story on
+              its own. Set it to `null` to hide the block entirely.
+            */}
+            <AnimatedSection delay={0.15}>
+              <HomeWalkthroughVideo />
             </AnimatedSection>
 
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto text-[11px] font-mono">
