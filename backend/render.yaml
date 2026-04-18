@@ -1,0 +1,44 @@
+# Render IaC blueprint for the Go API.
+#
+# Usage (dashboard):
+#   1. New → Blueprint → pick this repo, point at backend/render.yaml.
+#   2. Fill the `sync: false` secrets (DATABASE_URL, DERIV_APP_ID, OPENAI_API_KEY).
+#   3. Render builds from backend/Dockerfile and serves /health on the
+#      auto-assigned HTTPS hostname.
+#
+# Render injects $PORT at runtime; cmd/server/main.go already reads it and
+# falls back to 8090, which matches the Dockerfile EXPOSE line.
+services:
+  - type: web
+    name: deriv-arena-backend
+    runtime: docker
+    repo: https://github.com/solankiharsh/deriv-arena-hackathon
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # SHARE_BASE_URL is the canonical frontend used in share / join links.
+      - key: SHARE_BASE_URL
+        value: https://arena.solharsh.com
+      # CORS_ORIGINS is a comma-separated allowlist. Includes the custom
+      # domain, the Vercel preview/prod host, and localhost for dev.
+      - key: CORS_ORIGINS
+        value: https://arena.solharsh.com,https://deriv-arena-hackathon-beta.vercel.app,http://localhost:3000
+      # Secrets are filled in the Render dashboard on first deploy.
+      - key: DATABASE_URL
+        sync: false
+      - key: DERIV_APP_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      # Optional integrations. Leave blank to disable.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: FRONTEND_BASE_URL
+        value: https://arena.solharsh.com
