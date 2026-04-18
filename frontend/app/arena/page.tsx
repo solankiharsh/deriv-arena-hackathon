@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2, Trophy, Users, Clock, ArrowRight, Loader2,
   Swords, BarChart3, Zap, Plus, Activity,
-  Crosshair, Map,
+  Crosshair, Map, Radio,
 } from 'lucide-react';
 import { arenaApi } from '@/lib/arena-api';
 import { useArenaAuth } from '@/store/arenaAuthStore';
@@ -33,10 +33,14 @@ const MapTab = dynamic(() => import('@/components/arena/tabs/MapTab'), {
   ssr: false,
   loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
 });
+const IntelligenceTab = dynamic(() => import('@/components/arena/tabs/IntelligenceTab'), {
+  ssr: false,
+  loading: () => <div className="h-[400px] bg-white/[0.03] animate-pulse rounded-card" />,
+});
 const GOLD = '#E8B45E';
 const BG = '#07090F';
 
-type ArenaTab = 'games' | 'live' | 'command_center' | 'map';
+type ArenaTab = 'games' | 'live' | 'command_center' | 'intelligence' | 'map';
 
 function LiveInstanceCard({ instance }: { instance: GameInstance & { template_name?: string; game_mode?: string } }) {
   const router = useRouter();
@@ -238,6 +242,7 @@ export default function ArenaPage() {
     { value: 'games', label: 'Games', icon: Gamepad2, group: 'compete' },
     { value: 'live', label: 'Live', icon: Activity, group: 'compete' },
     { value: 'command_center', label: 'Hub', icon: Crosshair, group: 'intel' },
+    { value: 'intelligence', label: 'Intel', icon: Radio, group: 'intel' },
     { value: 'map', label: 'Map', icon: Map, group: 'intel' },
   ];
 
@@ -331,6 +336,11 @@ export default function ArenaPage() {
             {tab === 'command_center' && (
               <motion.div key="command_center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <CommandCenterTab />
+              </motion.div>
+            )}
+            {tab === 'intelligence' && (
+              <motion.div key="intelligence" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <IntelligenceTab />
               </motion.div>
             )}
             {tab === 'map' && (
